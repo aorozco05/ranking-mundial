@@ -124,20 +124,36 @@ export function getThirdPlacedAssignment(best8) {
 /**
  * Resuelve y calcula la estructura completa del bracket (R32, R16, QF, SF, Final, Campeón).
  */
-export function resolveFullBracket(matches, matchPredictions = {}) {
+export function resolveFullBracket(matches, matchPredictions = null) {
   const groupStandings = {};
   const groups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
   
   // Unificar marcadores con predicciones si se proveen
   const unifiedMatches = matches.map(match => {
-    const pred = matchPredictions[match.id];
-    if (pred && pred.homeScore !== undefined && pred.awayScore !== undefined) {
-      return {
-        ...match,
-        homeScore: pred.homeScore,
-        awayScore: pred.awayScore,
-        penaltyWinner: pred.penaltyWinner
-      };
+    if (matchPredictions) {
+      const pred = matchPredictions[match.id];
+      if (
+        pred && 
+        pred.homeScore !== undefined && 
+        pred.awayScore !== undefined && 
+        pred.homeScore !== null && 
+        pred.awayScore !== null
+      ) {
+        return {
+          ...match,
+          homeScore: pred.homeScore,
+          awayScore: pred.awayScore,
+          penaltyWinner: pred.penaltyWinner
+        };
+      } else {
+        // Si el usuario no ha llenado el pronóstico para este partido, en su simulación tiene marcador nulo
+        return {
+          ...match,
+          homeScore: null,
+          awayScore: null,
+          penaltyWinner: null
+        };
+      }
     }
     return match;
   });
