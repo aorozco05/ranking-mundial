@@ -1,0 +1,242 @@
+{
+    "Switzerland":  {
+                        "group":  "B",
+                        "code":  "B4",
+                        "fifaRank":  19
+                    },
+    "Brazil":  {
+                   "group":  "C",
+                   "code":  "C1",
+                   "fifaRank":  6
+               },
+    "Cape Verde":  {
+                       "group":  "H",
+                       "code":  "H2",
+                       "fifaRank":  69
+                   },
+    "Austria":  {
+                    "group":  "J",
+                    "code":  "J3",
+                    "fifaRank":  24
+                },
+    "Argentina":  {
+                      "group":  "J",
+                      "code":  "J1",
+                      "fifaRank":  3
+                  },
+    "Uzbekistan":  {
+                       "group":  "K",
+                       "code":  "K3",
+                       "fifaRank":  50
+                   },
+    "Sweden":  {
+                   "group":  "F",
+                   "code":  "F3",
+                   "fifaRank":  38
+               },
+    "Haiti":  {
+                  "group":  "C",
+                  "code":  "C3",
+                  "fifaRank":  83
+              },
+    "Canada":  {
+                   "group":  "B",
+                   "code":  "B1",
+                   "fifaRank":  30
+               },
+    "Algeria":  {
+                    "group":  "J",
+                    "code":  "J2",
+                    "fifaRank":  28
+                },
+    "Panama":  {
+                   "group":  "L",
+                   "code":  "L4",
+                   "fifaRank":  33
+               },
+    "New Zealand":  {
+                        "group":  "G",
+                        "code":  "G4",
+                        "fifaRank":  85
+                    },
+    "USA":  {
+                "group":  "D",
+                "code":  "D1",
+                "fifaRank":  16
+            },
+    "Morocco":  {
+                    "group":  "C",
+                    "code":  "C2",
+                    "fifaRank":  8
+                },
+    "Saudi Arabia":  {
+                         "group":  "H",
+                         "code":  "H3",
+                         "fifaRank":  61
+                     },
+    "Croatia":  {
+                    "group":  "L",
+                    "code":  "L2",
+                    "fifaRank":  11
+                },
+    "CuraÃ§ao":  {
+                     "group":  "E",
+                     "code":  "E2",
+                     "fifaRank":  82
+                 },
+    "Turkey":  {
+                   "group":  "D",
+                   "code":  "D4",
+                   "fifaRank":  22
+               },
+    "IR Iran":  {
+                    "group":  "G",
+                    "code":  "G3",
+                    "fifaRank":  21
+                },
+    "Tunisia":  {
+                    "group":  "F",
+                    "code":  "F4",
+                    "fifaRank":  44
+                },
+    "Qatar":  {
+                  "group":  "B",
+                  "code":  "B3",
+                  "fifaRank":  55
+              },
+    "Scotland":  {
+                     "group":  "C",
+                     "code":  "C4",
+                     "fifaRank":  43
+                 },
+    "Jordan":  {
+                   "group":  "J",
+                   "code":  "J4",
+                   "fifaRank":  63
+               },
+    "Ecuador":  {
+                    "group":  "E",
+                    "code":  "E4",
+                    "fifaRank":  23
+                },
+    "Australia":  {
+                      "group":  "D",
+                      "code":  "D3",
+                      "fifaRank":  27
+                  },
+    "Netherlands":  {
+                        "group":  "F",
+                        "code":  "F1",
+                        "fifaRank":  7
+                    },
+    "Colombia":  {
+                     "group":  "K",
+                     "code":  "K4",
+                     "fifaRank":  13
+                 },
+    "Bosnia/Herzegovina":  {
+                           "group":  "B",
+                           "code":  "B2",
+                           "fifaRank":  65
+                       },
+    "Germany":  {
+                    "group":  "E",
+                    "code":  "E1",
+                    "fifaRank":  10
+                },
+    "Spain":  {
+                  "group":  "H",
+                  "code":  "H1",
+                  "fifaRank":  2
+              },
+    "France":  {
+                   "group":  "I",
+                   "code":  "I1",
+                   "fifaRank":  1
+               },
+    "Japan":  {
+                  "group":  "F",
+                  "code":  "F2",
+                  "fifaRank":  18
+              },
+    "Norway":  {
+                   "group":  "I",
+                   "code":  "I4",
+                   "fifaRank":  31
+               },
+    "Rep. of Korea":  {
+                          "group":  "A",
+                          "code":  "A3",
+                          "fifaRank":  25
+                      },
+    "Iraq":  {
+                 "group":  "I",
+                 "code":  "I3",
+                 "fifaRank":  57
+             },
+    "Egypt":  {
+                  "group":  "G",
+                  "code":  "G2",
+                  "fifaRank":  29
+              },
+    "Portugal":  {
+                     "group":  "K",
+                     "code":  "K1",
+                     "fifaRank":  5
+                 },
+    "Czech Rep.":  {
+                       "group":  "A",
+                       "code":  "A4",
+                       "fifaRank":  41
+                   },
+    "Mexico":  {
+                   "group":  "A",
+                   "code":  "A1",
+                   "fifaRank":  15
+               },
+    "Ivory Coast":  {
+                        "group":  "E",
+                        "code":  "E3",
+                        "fifaRank":  34
+                    },
+    "Senegal":  {
+                    "group":  "I",
+                    "code":  "I2",
+                    "fifaRank":  14
+                },
+    "Ghana":  {
+                  "group":  "L",
+                  "code":  "L3",
+                  "fifaRank":  74
+              },
+    "England":  {
+                    "group":  "L",
+                    "code":  "L1",
+                    "fifaRank":  4
+                },
+    "Belgium":  {
+                    "group":  "G",
+                    "code":  "G1",
+                    "fifaRank":  9
+                },
+    "Uruguay":  {
+                    "group":  "H",
+                    "code":  "H4",
+                    "fifaRank":  17
+                },
+    "South Africa":  {
+                         "group":  "A",
+                         "code":  "A2",
+                         "fifaRank":  60
+                     },
+    "DR Congo":  {
+                     "group":  "K",
+                     "code":  "K2",
+                     "fifaRank":  46
+                 },
+    "Paraguay":  {
+                     "group":  "D",
+                     "code":  "D2",
+                     "fifaRank":  40
+                 }
+}
