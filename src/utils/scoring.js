@@ -64,6 +64,19 @@ export function calculateMatchPoints(prediction, actual) {
   return { points: 2, category: 'Ganador/Empate Simple' };
 }
 
+function isPlaceholder(name) {
+  if (!name) return true;
+  return (
+    name.startsWith('1') || 
+    name.startsWith('2') || 
+    name.startsWith('3-') || 
+    name.includes('Ganador') || 
+    name.includes('Campeón') || 
+    name.includes('Subcampeón') ||
+    name === 'Vacío'
+  );
+}
+
 export function calculateBracketPoints(userBracket, actualBracket) {
   let points = 0;
   const details = {
@@ -87,7 +100,7 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   // Dieciseisavos (Round of 32) - 6 pts por equipo
   if (userBracket.r32 && actualBracket.r32) {
-    const hits = userBracket.r32.filter(team => team && actualBracket.r32.includes(team));
+    const hits = userBracket.r32.filter(team => team && !isPlaceholder(team) && actualBracket.r32.includes(team));
     details.r32Hits = hits.length;
     details.r32Points = hits.length * 6;
     points += details.r32Points;
@@ -95,7 +108,7 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   // Octavos (Round of 16) - 9 pts por equipo
   if (userBracket.r16 && actualBracket.r16) {
-    const hits = userBracket.r16.filter(team => team && actualBracket.r16.includes(team));
+    const hits = userBracket.r16.filter(team => team && !isPlaceholder(team) && actualBracket.r16.includes(team));
     details.r16Hits = hits.length;
     details.r16Points = hits.length * 9;
     points += details.r16Points;
@@ -103,7 +116,7 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   // Cuartos (Quarterfinals) - 12 pts por equipo
   if (userBracket.qf && actualBracket.qf) {
-    const hits = userBracket.qf.filter(team => team && actualBracket.qf.includes(team));
+    const hits = userBracket.qf.filter(team => team && !isPlaceholder(team) && actualBracket.qf.includes(team));
     details.qfHits = hits.length;
     details.qfPoints = hits.length * 12;
     points += details.qfPoints;
@@ -111,7 +124,7 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   // Semifinales - 18 pts por equipo
   if (userBracket.sf && actualBracket.sf) {
-    const hits = userBracket.sf.filter(team => team && actualBracket.sf.includes(team));
+    const hits = userBracket.sf.filter(team => team && !isPlaceholder(team) && actualBracket.sf.includes(team));
     details.sfHits = hits.length;
     details.sfPoints = hits.length * 18;
     points += details.sfPoints;
@@ -119,21 +132,31 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   // Final - 24 pts por equipo
   if (userBracket.final && actualBracket.final) {
-    const hits = userBracket.final.filter(team => team && actualBracket.final.includes(team));
+    const hits = userBracket.final.filter(team => team && !isPlaceholder(team) && actualBracket.final.includes(team));
     details.finalHits = hits.length;
     details.finalPoints = hits.length * 24;
     points += details.finalPoints;
   }
 
   // Campeón - 30 pts
-  if (userBracket.champion && actualBracket.champion && userBracket.champion === actualBracket.champion) {
+  if (
+    userBracket.champion && 
+    actualBracket.champion && 
+    !isPlaceholder(userBracket.champion) && 
+    userBracket.champion === actualBracket.champion
+  ) {
     details.championHit = true;
     details.championPoints = 30;
     points += 30;
   }
 
   // Subcampeón - 15 pts
-  if (userBracket.runnerUp && actualBracket.runnerUp && userBracket.runnerUp === actualBracket.runnerUp) {
+  if (
+    userBracket.runnerUp && 
+    actualBracket.runnerUp && 
+    !isPlaceholder(userBracket.runnerUp) && 
+    userBracket.runnerUp === actualBracket.runnerUp
+  ) {
     details.runnerUpHit = true;
     details.runnerUpPoints = 15;
     points += 15;
