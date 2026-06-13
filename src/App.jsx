@@ -31,6 +31,7 @@ export default function App() {
   // Estados de datos
   const [users, setUsers] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [prizePool, setPrizePool] = useState(100000); // Bote de apuestas (persistido)
   
   // Navegación
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -42,6 +43,7 @@ export default function App() {
         let storedUsers = await db.get('users') || [];
         let storedMatches = await db.get('matches') || [];
         let storedSession = await db.get('session');
+        let storedPrizePool = await db.get('prizePool');
 
         // Inicializar partidos reales si la base de datos está vacía
         if (storedMatches.length === 0) {
@@ -65,6 +67,9 @@ export default function App() {
 
         setUsers(storedUsers);
         setMatches(storedMatches);
+        if (storedPrizePool !== undefined && storedPrizePool !== null) {
+          setPrizePool(storedPrizePool);
+        }
 
         if (storedSession) {
           setCurrentUser(storedSession);
@@ -203,6 +208,14 @@ export default function App() {
     setMatches(updatedMatches);
     await db.set('matches', updatedMatches);
   };
+
+  // 7. Actualizar el bote de apuestas (persistido en IndexedDB)
+  const updatePrizePool = async (value) => {
+    const safeValue = Number.isNaN(value) ? 0 : value;
+    setPrizePool(safeValue);
+    await db.set('prizePool', safeValue);
+  };
+
   const handleResetDB = async () => {
     if (window.confirm('¿Seguro que deseas limpiar la base de datos de la polla? Se borrarán todos los participantes y cambios.')) {
       await db.clear();
@@ -375,6 +388,8 @@ export default function App() {
             currentUser={currentUser}
             updateMatchResult={updateMatchResult}
             updateUserPredictions={updateUserPredictions}
+            prizePool={prizePool}
+            updatePrizePool={updatePrizePool}
           />
         )}
         {activeTab === 'matches' && (
