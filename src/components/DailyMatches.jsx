@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { CalendarClock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target } from 'lucide-react';
+import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target } from 'lucide-react';
 import { calculateMatchPoints } from '../utils/scoring';
+import { hasMatchStarted } from '../utils/matchSchedule';
 
 // Obtener la fecha de hoy en formato YYYY-MM-DD según la zona horaria local
 const getTodayString = () => {
@@ -92,7 +93,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
 
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized) return; // No editar pronósticos de partidos ya finalizados
+    if (isOfficialized || hasMatchStarted(match)) return; // No editar si ya comenzó o finalizó
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
 
@@ -113,7 +114,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
   const adjustPredictionScore = (match, side, delta) => {
     if (!targetUser) return;
     const isOfficialized = match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized) return;
+    if (isOfficialized || hasMatchStarted(match)) return;
 
     const currentPred = targetUser.predictions?.matches?.[match.id] || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
@@ -127,7 +128,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     if (!targetUser) return;
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized) return;
+    if (isOfficialized || hasMatchStarted(match)) return;
 
     const updatedPredictions = {
       ...targetUser.predictions,
@@ -148,6 +149,11 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     const hasPred = pred && pred.homeScore !== null && pred.homeScore !== undefined && pred.awayScore !== null && pred.awayScore !== undefined;
 
     if (!hasResult) {
+      if (hasMatchStarted(match)) {
+        return hasPred
+          ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Pronóstico cerrado</span>
+          : <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2.5 py-0.5 rounded-lg text-[10px] font-bold">No pronosticaste</span>;
+      }
       return hasPred
         ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Pronóstico guardado</span>
         : <span className="bg-amber-500/10 border border-amber-500/20 text-amber-500 px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Sin pronóstico</span>;
@@ -304,7 +310,8 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
             const awayScoreNum = awayVal !== '' ? parseInt(awayVal, 10) : null;
             const isTie = isKnockout && homeScoreNum !== null && awayScoreNum !== null && homeScoreNum === awayScoreNum;
 
-            const canEditMatch = !isGuest && targetUser && !hasResult;
+            const started = hasMatchStarted(match);
+            const canEditMatch = !isGuest && targetUser && !hasResult && !started;
 
             return (
               <div key={match.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/7.5 transition-all">
@@ -337,6 +344,20 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                       )}
                     </div>
                     <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</span>
+                  </div>
+
+                  {/* Hora de inicio y aviso de cierre del pronóstico */}
+                  <div className="flex items-center gap-2 mt-2 text-[10px]">
+                    {match.time && (
+                      <span className="text-gray-400 flex items-center gap-1">
+                        <Clock size={10} /> {match.time}
+                      </span>
+                    )}
+                    {!isGuest && !hasResult && started && (
+                      <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                        <Lock size={10} /> Pronóstico cerrado
+                      </span>
+                    )}
                   </div>
 
                   {/* Resultado oficial cuando ya finalizó */}

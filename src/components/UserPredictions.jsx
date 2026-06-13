@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Award, Calendar, CheckCircle2, ShieldAlert, Plus, Minus, User } from 'lucide-react';
+import { Award, Calendar, Clock, Lock, CheckCircle2, ShieldAlert, Plus, Minus, User } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
 import { resolveFullBracket } from '../utils/bracketResolver';
+import { hasMatchStarted } from '../utils/matchSchedule';
 
 export default function UserPredictions({ users, matches, actualBracket, updateUserPredictions, activeUser }) {
   const [selectedUserId, setSelectedUserId] = useState(activeUser?.id && activeUser?.id !== 'admin' && activeUser?.id !== 'guest' ? activeUser.id : (users[0]?.id || ''));
@@ -39,11 +40,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
   const handlePredictionScoreChange = (matchId, side, value) => {
     if (!targetUser || !canEdit) return;
-    
-    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+
+    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized && activeUser?.role !== 'admin') return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match))) return;
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
     
@@ -63,11 +64,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
   const handlePredictionPenaltyWinnerChange = (matchId, penaltyWinner) => {
     if (!targetUser || !canEdit) return;
-    
-    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+
+    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized && activeUser?.role !== 'admin') return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match))) return;
     
     const updatedPredictions = {
       ...targetUser.predictions,
@@ -87,10 +88,10 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const adjustPredictionScore = (match, side, delta) => {
     if (!canEdit) return;
 
-    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
     const actualMatch = matches.find(m => m.id === match.id);
     const isOfficialized = actualMatch && actualMatch.homeScore !== null && actualMatch.awayScore !== null;
-    if (isOfficialized && activeUser?.role !== 'admin') return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(actualMatch))) return;
 
     const currentPred = targetUser.predictions?.matches?.[match.id] || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
@@ -276,7 +277,9 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
                     const actualMatchData = matches.find(m => m.id === match.id);
                     const isOfficialized = actualMatchData && actualMatchData.homeScore !== null && actualMatchData.awayScore !== null;
-                    const canEditMatch = canEdit && (!isOfficialized || activeUser?.role === 'admin');
+                    const started = hasMatchStarted(actualMatchData);
+                    const lockedForUser = (isOfficialized || started) && activeUser?.role !== 'admin';
+                    const canEditMatch = canEdit && !lockedForUser;
 
                     return (
                       <div 
@@ -333,6 +336,25 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                             </div>
 
                             <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</span>
+                          </div>
+
+                          {/* Horario de inicio y estado de cierre del pronóstico */}
+                          <div className="flex items-center gap-2 mt-2 text-[10px]">
+                            {match.date && (
+                              <span className="text-gray-400 flex items-center gap-1">
+                                <Calendar size={10} /> {match.date}
+                              </span>
+                            )}
+                            {match.time && (
+                              <span className="text-gray-400 flex items-center gap-1">
+                                <Clock size={10} /> {match.time}
+                              </span>
+                            )}
+                            {lockedForUser && (
+                              <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                <Lock size={10} /> {isOfficialized ? 'Finalizado' : 'Pronóstico cerrado'}
+                              </span>
+                            )}
                           </div>
 
                           {/* Selector de Penaltis para Pronóstico */}
