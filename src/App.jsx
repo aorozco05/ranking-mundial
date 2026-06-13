@@ -516,13 +516,15 @@ export default function App() {
               <FileDown size={12} /> Exportar Copia
             </button>
 
-            {/* Limpiar Base de Datos */}
-            <button 
-              onClick={handleResetDB} 
-              className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-3 py-1.5 rounded-lg font-semibold text-rose-400 transition-colors flex items-center gap-1"
-            >
-              <RefreshCw size={12} /> Limpiar Base de Datos
-            </button>
+            {/* Limpiar Base de Datos (solo administrador) */}
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={handleResetDB}
+                className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-3 py-1.5 rounded-lg font-semibold text-rose-400 transition-colors flex items-center gap-1"
+              >
+                <RefreshCw size={12} /> Limpiar Base de Datos
+              </button>
+            )}
           </div>
         </div>
       </footer>
