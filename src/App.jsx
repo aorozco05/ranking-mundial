@@ -191,7 +191,18 @@ export default function App() {
     await db.set('matches', updatedMatches);
   };
 
-  // 7. Reiniciar Base de Datos Local
+  // 6. Editar la fecha de un partido (solo administrador)
+  const updateMatchDate = async (matchId, date) => {
+    const updatedMatches = matches.map(match => {
+      if (match.id === matchId) {
+        return { ...match, date };
+      }
+      return match;
+    });
+
+    setMatches(updatedMatches);
+    await db.set('matches', updatedMatches);
+  };
   const handleResetDB = async () => {
     if (window.confirm('¿Seguro que deseas limpiar la base de datos de la polla? Se borrarán todos los participantes y cambios.')) {
       await db.clear();
@@ -367,9 +378,10 @@ export default function App() {
           />
         )}
         {activeTab === 'matches' && (
-          <MatchesList 
-            matches={resolvedMatches} 
-            updateMatchResult={updateMatchResult} 
+          <MatchesList
+            matches={resolvedMatches}
+            updateMatchResult={updateMatchResult}
+            updateMatchDate={updateMatchDate}
             actualBracket={actualBracket}
             currentUserRole={currentUser.role}
           />
