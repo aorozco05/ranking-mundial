@@ -10,15 +10,7 @@ export default function Dashboard({ users, matches }) {
 
   // Ordenar y calcular posiciones del Leaderboard
   const leaderboard = useMemo(() => {
-    return [...users].sort((a, b) => {
-      if (b.scoreDetails.total !== a.scoreDetails.total) {
-        return b.scoreDetails.total - a.scoreDetails.total;
-      }
-      if (b.scoreDetails.exactHits !== a.scoreDetails.exactHits) {
-        return b.scoreDetails.exactHits - a.scoreDetails.exactHits;
-      }
-      return b.scoreDetails.winnerHits - a.scoreDetails.winnerHits;
-    });
+    return [...users].sort((a, b) => b.scoreDetails.total - a.scoreDetails.total);
   }, [users]);
 
   // Encontrar candidatos del sorteo de forma reactiva sin generar loops de renders
@@ -27,18 +19,20 @@ export default function Dashboard({ users, matches }) {
 
     const scoreGroups = {};
     leaderboard.forEach(user => {
-      const key = `${user.scoreDetails.total}-${user.scoreDetails.exactHits}-${user.scoreDetails.winnerHits}`;
+      const key = user.scoreDetails.total;
       if (!scoreGroups[key]) scoreGroups[key] = [];
       scoreGroups[key].push(user);
     });
 
-    const ties = Object.values(scoreGroups).filter(group => group.length > 1);
-    if (ties.length > 0) {
-      // Retornar los nombres del primer grupo empatado (más arriba en el ranking)
-      return ties[0].map(u => u.name);
-    } else {
-      return users.map(u => u.name);
+    // Ordenar puntajes de mayor a menor y buscar el primer grupo empatado
+    const sortedScores = Object.keys(scoreGroups).map(Number).sort((a, b) => b - a);
+    for (const score of sortedScores) {
+      if (scoreGroups[score].length > 1) {
+        return scoreGroups[score].map(u => u.name);
+      }
     }
+
+    return users.map(u => u.name);
   }, [users, leaderboard, customRaffleList]);
 
   // Ejecutar el sorteo animado
@@ -219,7 +213,7 @@ export default function Dashboard({ users, matches }) {
             <h2 className="text-xl font-bold font-title text-white">Ranking General</h2>
             <div className="text-xs text-gray-400 flex items-center gap-1">
               <AlertCircle size={14} className="text-emerald-primary" />
-              Criterios: Puntos → Marcadores Exactos → Sorteo
+              Criterio: Puntos (Empates definidos por Sorteo)
             </div>
           </div>
 

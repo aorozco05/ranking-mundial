@@ -39,6 +39,12 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
   const handlePredictionScoreChange = (matchId, side, value) => {
     if (!targetUser || !canEdit) return;
+    
+    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+    const match = matches.find(m => m.id === matchId);
+    const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
+    if (isOfficialized && activeUser?.role !== 'admin') return;
+
     const cleanValue = value === '' ? null : parseInt(value, 10);
     
     const updatedPredictions = {
@@ -58,6 +64,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const handlePredictionPenaltyWinnerChange = (matchId, penaltyWinner) => {
     if (!targetUser || !canEdit) return;
     
+    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+    const match = matches.find(m => m.id === matchId);
+    const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
+    if (isOfficialized && activeUser?.role !== 'admin') return;
+    
     const updatedPredictions = {
       ...targetUser.predictions,
       matches: {
@@ -75,6 +86,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   // Stepper rápido para móviles
   const adjustPredictionScore = (match, side, delta) => {
     if (!canEdit) return;
+    
+    // Si el partido está oficializado y el usuario no es admin, bloquear edición
+    const isOfficialized = match.homeScore !== null && match.awayScore !== null;
+    if (isOfficialized && activeUser?.role !== 'admin') return;
+
     const currentPred = targetUser.predictions?.matches?.[match.id] || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
       ? currentPred[side]
@@ -91,6 +107,10 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     const pred = targetUser.predictions?.matches?.[match.id];
     if (!pred) {
       return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-lg text-[10px] font-bold">Sin Predicción (0 pts)</span>;
+    }
+
+    if (match.stage !== 'groups') {
+      return <span className="bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-lg text-[10px] font-bold">Solo Grupos (0 pts)</span>;
     }
 
     const result = calculateMatchPoints(pred, match);
@@ -116,7 +136,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
     const isHit = actualList.includes(teamName);
     if (isHit) {
-      const pts = stageKey === 'r32' ? 3 : (stageKey === 'r16' ? 5 : (stageKey === 'qf' ? 8 : (stageKey === 'sf' ? 12 : 18)));
+      const pts = stageKey === 'r32' ? 6 : (stageKey === 'r16' ? 9 : (stageKey === 'qf' ? 12 : (stageKey === 'sf' ? 18 : 24)));
       return { label: `✅ Acertado (+${pts})`, class: 'text-emerald-primary font-bold' };
     } else {
       return { label: `❌ Fallado`, class: 'text-rose-500' };
@@ -132,7 +152,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     }
 
     if (actualTeam === teamName) {
-      const pts = field === 'champion' ? 25 : 15;
+      const pts = field === 'champion' ? 30 : 15;
       return { label: `🏆 Acertado (+${pts}!)`, class: 'text-gold font-bold' };
     } else {
       return { label: `❌ Fallado`, class: 'text-rose-500' };
@@ -250,6 +270,9 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     const awayScoreNum = awayVal !== '' ? parseInt(awayVal, 10) : null;
                     const isTie = isKnockout && homeScoreNum !== null && awayScoreNum !== null && homeScoreNum === awayScoreNum;
 
+                    const isOfficialized = match.homeScore !== null && match.awayScore !== null;
+                    const canEditMatch = canEdit && (!isOfficialized || activeUser?.role === 'admin');
+
                     return (
                       <div 
                         key={match.id} 
@@ -257,11 +280,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                       >
                         {/* Equipos y Controles Stepper */}
                         <div className="flex flex-col flex-grow items-center justify-center w-full">
-                          <div className="flex items-center justify-center gap-3 w-full">
+                           <div className="flex items-center justify-center gap-3 w-full">
                             <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm truncate">{match.homeTeam}</span>
                             
                             <div className="flex items-center gap-1 bg-white/5 border border-white/15 p-1 rounded-xl">
-                              {canEdit ? (
+                              {canEditMatch ? (
                                 <>
                                   <button 
                                     type="button"
@@ -308,7 +331,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                           </div>
 
                           {/* Selector de Penaltis para Pronóstico */}
-                          {isTie && canEdit && (
+                          {isTie && canEditMatch && (
                             <div className="flex flex-col items-center mt-2.5">
                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">
                                 ¿Quién avanza por Penaltis?

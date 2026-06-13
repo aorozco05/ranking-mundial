@@ -6,15 +6,16 @@ import { resolveFullBracket } from './bracketResolver';
  * Reglas de Puntuación:
  * 1. Adivinar Marcador Exacto = 5 puntos
  * 2. Adivinar Ganador y diferencia de Goles = 3 puntos
- * 3. Adivinar Equipo Ganador o empate simple = 2 puntos
+ * 3. Adivinar Equipo Ganador o empate = 2 puntos
  * 4. Adivinar equipos que avanzan a:
- *    - Dieciseisavos (R32): 3 puntos por equipo
- *    - Octavos (R16): 5 puntos por equipo
- *    - Cuartos (R8): 8 puntos por equipo
- *    - Semifinales (R4): 12 puntos por equipo
- *    - Final (R2): 18 puntos por equipo
- * 5. Adivinar Campeón = 25 puntos
+ *    - Dieciseisavos (R32): 6 puntos por equipo
+ *    - Octavos (R16): 9 puntos por equipo
+ *    - Cuartos (R8): 12 puntos por equipo
+ *    - Semifinales (R4): 18 puntos por equipo
+ *    - Final (R2): 24 puntos por equipo
+ * 5. Adivinar Campeón = 30 puntos
  * 6. Adivinar Subcampeón = 15 puntos
+ * * Nota: Los puntos por resultados de partidos solo aplican para la fase de grupos.
  */
 
 export function calculateMatchPoints(prediction, actual) {
@@ -84,51 +85,51 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 
   if (!userBracket || !actualBracket) return { total: 0, details };
 
-  // Dieciseisavos (Round of 32) - 3 pts por equipo
+  // Dieciseisavos (Round of 32) - 6 pts por equipo
   if (userBracket.r32 && actualBracket.r32) {
     const hits = userBracket.r32.filter(team => team && actualBracket.r32.includes(team));
     details.r32Hits = hits.length;
-    details.r32Points = hits.length * 3;
+    details.r32Points = hits.length * 6;
     points += details.r32Points;
   }
 
-  // Octavos (Round of 16) - 5 pts por equipo
+  // Octavos (Round of 16) - 9 pts por equipo
   if (userBracket.r16 && actualBracket.r16) {
     const hits = userBracket.r16.filter(team => team && actualBracket.r16.includes(team));
     details.r16Hits = hits.length;
-    details.r16Points = hits.length * 5;
+    details.r16Points = hits.length * 9;
     points += details.r16Points;
   }
 
-  // Cuartos (Quarterfinals) - 8 pts por equipo
+  // Cuartos (Quarterfinals) - 12 pts por equipo
   if (userBracket.qf && actualBracket.qf) {
     const hits = userBracket.qf.filter(team => team && actualBracket.qf.includes(team));
     details.qfHits = hits.length;
-    details.qfPoints = hits.length * 8;
+    details.qfPoints = hits.length * 12;
     points += details.qfPoints;
   }
 
-  // Semifinales - 12 pts por equipo
+  // Semifinales - 18 pts por equipo
   if (userBracket.sf && actualBracket.sf) {
     const hits = userBracket.sf.filter(team => team && actualBracket.sf.includes(team));
     details.sfHits = hits.length;
-    details.sfPoints = hits.length * 12;
+    details.sfPoints = hits.length * 18;
     points += details.sfPoints;
   }
 
-  // Final - 18 pts por equipo
+  // Final - 24 pts por equipo
   if (userBracket.final && actualBracket.final) {
     const hits = userBracket.final.filter(team => team && actualBracket.final.includes(team));
     details.finalHits = hits.length;
-    details.finalPoints = hits.length * 18;
+    details.finalPoints = hits.length * 24;
     points += details.finalPoints;
   }
 
-  // Campeón - 25 pts
+  // Campeón - 30 pts
   if (userBracket.champion && actualBracket.champion && userBracket.champion === actualBracket.champion) {
     details.championHit = true;
-    details.championPoints = 25;
-    points += 25;
+    details.championPoints = 30;
+    points += 30;
   }
 
   // Subcampeón - 15 pts
@@ -159,19 +160,22 @@ export function calculateUserTotalScore(userPredictions, actualMatches, actualBr
   actualMatches.forEach(match => {
     const pred = matchPredictions[match.id];
     if (pred && match.homeScore !== null && match.awayScore !== null) {
-      const res = calculateMatchPoints(pred, match);
-      matchPoints += res.points;
-      
-      if (res.points === 5) {
-        matchStats.exact++;
-        exactHits++;
-      } else if (res.points === 3) {
-        matchStats.diff++;
-      } else if (res.points === 2) {
-        matchStats.simple++;
-        winnerHits++; // Considerado acierto de ganador
-      } else {
-        matchStats.failed++;
+      // Los puntos de resultados de partidos solo aplican para la fase de grupos
+      if (match.stage === 'groups') {
+        const res = calculateMatchPoints(pred, match);
+        matchPoints += res.points;
+        
+        if (res.points === 5) {
+          matchStats.exact++;
+          exactHits++;
+        } else if (res.points === 3) {
+          matchStats.diff++;
+        } else if (res.points === 2) {
+          matchStats.simple++;
+          winnerHits++; // Considerado acierto de ganador
+        } else {
+          matchStats.failed++;
+        }
       }
     }
   });
