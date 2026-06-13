@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Save, Calendar, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
 
-export default function MatchesList({ matches, updateMatchResult, actualBracket, currentUserRole }) {
+export default function MatchesList({ matches, updateMatchResult, updateMatchDate, actualBracket, currentUserRole }) {
   const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
   const [selectedGroup, setSelectedGroup] = useState('A');
   const [editingScores, setEditingScores] = useState({});
@@ -175,9 +175,21 @@ export default function MatchesList({ matches, updateMatchResult, actualBracket,
                 >
                   {/* Fecha y Fase */}
                   <div className="flex md:flex-col justify-between items-center md:items-start gap-1">
-                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                      <Calendar size={12} /> {match.date}
-                    </span>
+                    {isAdmin ? (
+                      <label className="text-xs text-gray-400 flex items-center gap-1" title="Editar fecha del partido">
+                        <Calendar size={12} className="text-emerald-primary" />
+                        <input
+                          type="date"
+                          value={match.date || ''}
+                          onChange={(e) => updateMatchDate(match.id, e.target.value)}
+                          className="bg-white/5 border border-white/15 focus:border-emerald-500 focus:outline-none rounded-lg px-2 py-1 text-xs text-gray-200 [color-scheme:dark]"
+                        />
+                      </label>
+                    ) : (
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Calendar size={12} /> {match.date}
+                      </span>
+                    )}
                     <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2 py-0.5 rounded-md text-[10px] font-bold">
                       {match.stage === 'groups' ? `Grupo ${match.group}` : getStageLabel(match.stage)}
                     </span>
