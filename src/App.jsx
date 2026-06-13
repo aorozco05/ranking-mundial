@@ -425,6 +425,7 @@ export default function App() {
         {activeTab === 'matches' && (
           <MatchesList
             matches={resolvedMatches}
+            users={enrichedUsers}
             updateMatchResult={updateMatchResult}
             updateMatchDate={updateMatchDate}
             updateMatchTime={updateMatchTime}

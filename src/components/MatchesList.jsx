@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react';
+import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus, Users, ChevronDown } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
+import { calculateMatchPoints } from '../utils/scoring';
 
-export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole }) {
+export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole, users = [] }) {
   const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
   const [selectedGroup, setSelectedGroup] = useState('A');
   const [editingScores, setEditingScores] = useState({});
+  const [openPredictions, setOpenPredictions] = useState(null); // matchId con el panel de pronósticos abierto
 
   const groupsList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
   const isAdmin = currentUserRole === 'admin';
@@ -168,11 +170,18 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
               const awayScoreNum = awayVal !== '' ? parseInt(awayVal, 10) : null;
               const isTie = isKnockout && homeScoreNum !== null && awayScoreNum !== null && homeScoreNum === awayScoreNum;
 
+              // Pronósticos de todos los participantes para este partido (vista admin)
+              const matchPredictions = users.map(u => ({ user: u, pred: u.predictions?.matches?.[match.id] }));
+              const predictionCount = matchPredictions.filter(mp =>
+                mp.pred && mp.pred.homeScore !== null && mp.pred.homeScore !== undefined && mp.pred.awayScore !== null && mp.pred.awayScore !== undefined
+              ).length;
+
               return (
-                <div 
-                  key={match.id} 
-                  className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:bg-white/7.5"
+                <div
+                  key={match.id}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col gap-4 transition-all hover:bg-white/7.5"
                 >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Fecha y Fase */}
                   <div className="flex md:flex-col justify-between items-center md:items-start gap-1">
                     {isAdmin ? (
@@ -330,9 +339,9 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
 
                   {/* Acciones */}
                   {isAdmin && (
-                    <div className="flex items-center justify-end">
+                    <div className="flex flex-col items-stretch md:items-end gap-2">
                       {hasScore && !isEdited ? (
-                        <span className="text-emerald-primary text-xs font-semibold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                        <span className="text-emerald-primary text-xs font-semibold flex items-center justify-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
                           <CheckCircle2 size={13} /> Oficial
                         </span>
                       ) : (
@@ -343,6 +352,60 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                         >
                           <Save size={14} /> Guardar
                         </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setOpenPredictions(prev => prev === match.id ? null : match.id)}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl text-xs font-bold text-gray-300 transition-all flex items-center justify-center gap-1"
+                      >
+                        <Users size={13} /> Pronósticos ({predictionCount})
+                        <ChevronDown size={13} className={`transition-transform ${openPredictions === match.id ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                  )}
+                  </div>
+
+                  {/* Panel con los pronósticos de todos los participantes */}
+                  {isAdmin && openPredictions === match.id && (
+                    <div className="border-t border-white/10 pt-3 space-y-2">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Users size={13} className="text-emerald-primary" /> Pronósticos de los participantes
+                      </span>
+                      {matchPredictions.length === 0 ? (
+                        <p className="text-xs text-gray-500">No hay participantes registrados.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {matchPredictions.map(({ user, pred }) => {
+                            const hasPred = pred && pred.homeScore !== null && pred.homeScore !== undefined && pred.awayScore !== null && pred.awayScore !== undefined;
+                            let pointsLabel = null;
+                            if (hasPred && hasScore && match.stage === 'groups') {
+                              const { points } = calculateMatchPoints(pred, match);
+                              pointsLabel = points;
+                            }
+                            return (
+                              <div key={user.id} className="flex items-center justify-between gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                                <span className="text-xs font-bold text-gray-200 truncate">{user.name}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {hasPred ? (
+                                    <span className="font-black text-sm text-white tracking-widest">{pred.homeScore}:{pred.awayScore}</span>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-500 italic">Sin pronóstico</span>
+                                  )}
+                                  {pointsLabel !== null && (
+                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                                      pointsLabel === 5 ? 'bg-amber-500/10 border-gold text-gold'
+                                        : pointsLabel === 3 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-primary'
+                                        : pointsLabel === 2 ? 'bg-sky-500/10 border-sky-500/20 text-sky-400'
+                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                                    }`}>
+                                      +{pointsLabel}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}
