@@ -358,9 +358,12 @@ export default function App() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 md:px-6 py-6 pb-24 md:pb-8">
         {activeTab === 'dashboard' && (
-          <Dashboard 
-            users={enrichedUsers} 
-            matches={resolvedMatches} 
+          <Dashboard
+            users={enrichedUsers}
+            matches={resolvedMatches}
+            currentUser={currentUser}
+            updateMatchResult={updateMatchResult}
+            updateUserPredictions={updateUserPredictions}
           />
         )}
         {activeTab === 'matches' && (
