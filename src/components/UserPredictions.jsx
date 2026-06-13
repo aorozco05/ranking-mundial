@@ -86,9 +86,10 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   // Stepper rápido para móviles
   const adjustPredictionScore = (match, side, delta) => {
     if (!canEdit) return;
-    
+
     // Si el partido está oficializado y el usuario no es admin, bloquear edición
-    const isOfficialized = match.homeScore !== null && match.awayScore !== null;
+    const actualMatch = matches.find(m => m.id === match.id);
+    const isOfficialized = actualMatch && actualMatch.homeScore !== null && actualMatch.awayScore !== null;
     if (isOfficialized && activeUser?.role !== 'admin') return;
 
     const currentPred = targetUser.predictions?.matches?.[match.id] || {};
@@ -101,11 +102,13 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   };
 
   const getMatchPointBadge = (match) => {
-    if (match.homeScore === null || match.awayScore === null) {
+    // Use actual match data (not the predicted-overlay version) to check if match was played
+    const actualMatch = matches.find(m => m.id === match.id);
+    if (!actualMatch || actualMatch.homeScore === null || actualMatch.awayScore === null) {
       return <span className="text-[10px] text-gray-500 font-semibold uppercase">Pendiente</span>;
     }
     const pred = targetUser.predictions?.matches?.[match.id];
-    if (!pred) {
+    if (!pred || pred.homeScore === null || pred.homeScore === undefined || pred.awayScore === null || pred.awayScore === undefined) {
       return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-lg text-[10px] font-bold">Sin Predicción (0 pts)</span>;
     }
 
@@ -113,7 +116,8 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
       return <span className="bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-lg text-[10px] font-bold">Solo Grupos (0 pts)</span>;
     }
 
-    const result = calculateMatchPoints(pred, match);
+    // Compare prediction vs actual match result (not prediction vs itself)
+    const result = calculateMatchPoints(pred, actualMatch);
     if (result.points === 5) {
       return <span className="bg-amber-500/10 border border-gold text-gold px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Exacto (+5)</span>;
     } else if (result.points === 3) {
@@ -270,7 +274,8 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     const awayScoreNum = awayVal !== '' ? parseInt(awayVal, 10) : null;
                     const isTie = isKnockout && homeScoreNum !== null && awayScoreNum !== null && homeScoreNum === awayScoreNum;
 
-                    const isOfficialized = match.homeScore !== null && match.awayScore !== null;
+                    const actualMatchData = matches.find(m => m.id === match.id);
+                    const isOfficialized = actualMatchData && actualMatchData.homeScore !== null && actualMatchData.awayScore !== null;
                     const canEditMatch = canEdit && (!isOfficialized || activeUser?.role === 'admin');
 
                     return (
