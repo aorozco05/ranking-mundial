@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw } from 'lucide-react';
+import DailyMatches from './DailyMatches';
 
-export default function Dashboard({ users, matches }) {
+export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions }) {
   const [totalPrizePool, setTotalPrizePool] = useState(100000); // Valor en moneda local
   const [isSpinning, setIsSpinning] = useState(false);
   const [raffleWinner, setRaffleWinner] = useState(null);
@@ -75,7 +76,16 @@ export default function Dashboard({ users, matches }) {
 
   return (
     <div className="space-y-8">
-      
+
+      {/* PARTIDOS DEL DÍA (Pronósticos para usuarios / Resultados para admin) */}
+      <DailyMatches
+        matches={matches}
+        currentUser={currentUser}
+        users={users}
+        updateMatchResult={updateMatchResult}
+        updateUserPredictions={updateUserPredictions}
+      />
+
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
       {leaderboard.length > 0 && (
         <div className="glass-panel p-6 rounded-3xl" style={{ contentVisibility: 'auto' }}>
