@@ -47,7 +47,24 @@ export default function App() {
 
         // Inicializar partidos reales si la base de datos está vacía
         if (storedMatches.length === 0) {
-          storedMatches = [...INITIAL_MATCHES, ...INITIAL_KNOCKOUT_MATCHES];
+          storedMatches = [...INITIAL_MATCHES, ...INITIAL_KNOCKOUT_MATCHES].map(m => ({
+            ...m,
+            time: m.time || '15:00'
+          }));
+          await db.set('matches', storedMatches);
+        }
+
+        // Asegurar que todos los partidos tengan una hora de inicio (migración)
+        let matchesUpdated = false;
+        const matchesWithTime = storedMatches.map(match => {
+          if (match.time === undefined) {
+            matchesUpdated = true;
+            return { ...match, time: '15:00' };
+          }
+          return match;
+        });
+        if (matchesUpdated) {
+          storedMatches = matchesWithTime;
           await db.set('matches', storedMatches);
         }
 
@@ -201,6 +218,19 @@ export default function App() {
     const updatedMatches = matches.map(match => {
       if (match.id === matchId) {
         return { ...match, date };
+      }
+      return match;
+    });
+
+    setMatches(updatedMatches);
+    await db.set('matches', updatedMatches);
+  };
+
+  // 6.1. Editar la hora de inicio de un partido (solo administrador)
+  const updateMatchTime = async (matchId, time) => {
+    const updatedMatches = matches.map(match => {
+      if (match.id === matchId) {
+        return { ...match, time };
       }
       return match;
     });
@@ -397,6 +427,7 @@ export default function App() {
             matches={resolvedMatches}
             updateMatchResult={updateMatchResult}
             updateMatchDate={updateMatchDate}
+            updateMatchTime={updateMatchTime}
             actualBracket={actualBracket}
             currentUserRole={currentUser.role}
           />
