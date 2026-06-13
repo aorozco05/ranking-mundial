@@ -286,7 +286,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                         {/* Equipos y Controles Stepper */}
                         <div className="flex flex-col flex-grow items-center justify-center w-full">
                            <div className="flex items-center justify-center gap-3 w-full">
-                            <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm truncate">{match.homeTeam}</span>
+                            <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</span>
                             
                             <div className="flex items-center gap-1 bg-white/5 border border-white/15 p-1 rounded-xl">
                               {canEditMatch ? (
@@ -332,7 +332,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                               )}
                             </div>
 
-                            <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm truncate">{match.awayTeam}</span>
+                            <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</span>
                           </div>
 
                           {/* Selector de Penaltis para Pronóstico */}

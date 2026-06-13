@@ -187,7 +187,7 @@ export default function MatchesList({ matches, updateMatchResult, actualBracket,
                   <div className="flex flex-col flex-grow items-center justify-center">
                     <div className="flex items-center justify-center gap-3 select-none w-full">
                       {/* Local */}
-                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm truncate">{match.homeTeam}</div>
+                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</div>
 
                       {/* Inputs de marcador (Con botones stepper para móviles) */}
                       <div className="flex items-center gap-1">
@@ -235,7 +235,7 @@ export default function MatchesList({ matches, updateMatchResult, actualBracket,
                       </div>
 
                       {/* Visitante */}
-                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm truncate">{match.awayTeam}</div>
+                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</div>
                     </div>
 
                     {/* Selector de Penaltis (si hay empate en eliminatorias) */}
