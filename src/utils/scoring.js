@@ -168,7 +168,6 @@ export function calculateBracketPoints(userBracket, actualBracket) {
 export function calculateUserTotalScore(userPredictions, actualMatches, actualBracket) {
   let matchPoints = 0;
   let exactHits = 0;
-  const diffHits = 0; // Se puede calcular si es necesario
   let winnerHits = 0;
 
   const matchStats = {

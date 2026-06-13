@@ -256,8 +256,10 @@ export default function Dashboard({ users, matches }) {
                         {user.scoreDetails.total}
                       </td>
                       <td className="p-4 text-center text-xs">
-                        <span className="block font-semibold text-white">Exactos: {user.scoreDetails.exactHits}</span>
-                        <span className="text-gray-500">Puntos: {user.scoreDetails.matchPoints}</span>
+                        <span className="block font-semibold text-gold">⭐ {user.scoreDetails.matchStats.exact} exactos</span>
+                        <span className="block text-emerald-primary">✓ {user.scoreDetails.matchStats.diff} diferencia</span>
+                        <span className="block text-sky-400">▲ {user.scoreDetails.matchStats.simple} ganador</span>
+                        <span className="text-gray-500 font-semibold">{user.scoreDetails.matchPoints} pts</span>
                       </td>
                       <td className="p-4 text-center text-xs">
                         <span className="block font-semibold text-white">
