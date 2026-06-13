@@ -158,22 +158,39 @@ export function resolveFullBracket(matches, matchPredictions = null) {
     return match;
   });
 
+  // Helper para verificar si un grupo está completamente jugado
+  const isGroupFullyPlayed = (groupLetter) => {
+    const groupMatches = unifiedMatches.filter(m => m.stage === 'groups' && m.group === groupLetter);
+    return groupMatches.length > 0 && groupMatches.every(m => m.homeScore !== null && m.awayScore !== null);
+  };
+
   // Calcular standings
   groups.forEach(g => {
     groupStandings[g] = calculateGroupStandings(unifiedMatches, g);
   });
 
-  // Clasificados directos
+  // Clasificados directos (solo si el grupo está completamente jugado)
   const groupWinners = {};
   groups.forEach(g => {
-    const standings = groupStandings[g];
-    groupWinners[`1${g}`] = standings[0]?.name || `1${g}`;
-    groupWinners[`2${g}`] = standings[1]?.name || `2${g}`;
+    if (isGroupFullyPlayed(g)) {
+      const standings = groupStandings[g];
+      groupWinners[`1${g}`] = standings[0]?.name || `1${g}`;
+      groupWinners[`2${g}`] = standings[1]?.name || `2${g}`;
+    } else {
+      groupWinners[`1${g}`] = `1${g}`;
+      groupWinners[`2${g}`] = `2${g}`;
+    }
   });
 
-  // Clasificación de terceros
-  const best8 = getBestThirdPlacedTeams(unifiedMatches);
-  const thirdAssignments = getThirdPlacedAssignment(best8);
+  // Clasificación de terceros (solo si todos los grupos están completamente jugados)
+  const allGroupsPlayed = groups.every(g => isGroupFullyPlayed(g));
+  let best8 = [];
+  let thirdAssignments = {};
+
+  if (allGroupsPlayed) {
+    best8 = getBestThirdPlacedTeams(unifiedMatches);
+    thirdAssignments = getThirdPlacedAssignment(best8);
+  }
 
   const matchWinners = {};
 
