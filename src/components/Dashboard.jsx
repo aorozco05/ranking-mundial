@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw } from 'lucide-react';
 import DailyMatches from './DailyMatches';
+import GroupStandings from './GroupStandings';
 
-export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions }) {
-  const [totalPrizePool, setTotalPrizePool] = useState(100000); // Valor en moneda local
+export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions, prizePool, updatePrizePool }) {
+  const totalPrizePool = prizePool ?? 100000; // Bote de apuestas (persistido desde App)
   const [isSpinning, setIsSpinning] = useState(false);
   const [raffleWinner, setRaffleWinner] = useState(null);
   const [raffleRotation, setRaffleRotation] = useState(0);
@@ -85,6 +86,9 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         updateMatchResult={updateMatchResult}
         updateUserPredictions={updateUserPredictions}
       />
+
+      {/* TABLA DE POSICIONES DE LOS EQUIPOS POR GRUPO */}
+      <GroupStandings matches={matches} />
 
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
       {leaderboard.length > 0 && (
@@ -190,7 +194,7 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
               <input
                 type="number"
                 value={totalPrizePool}
-                onChange={(e) => setTotalPrizePool(Number(e.target.value))}
+                onChange={(e) => updatePrizePool(Number(e.target.value))}
                 className="w-32 bg-transparent focus:outline-none text-2xl font-bold font-title text-white p-0"
               />
             </div>
