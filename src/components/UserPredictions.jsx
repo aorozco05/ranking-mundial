@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Award, Calendar, Clock, Lock, CheckCircle2, ShieldAlert, Plus, Minus, User, Save, Loader2, AlertCircle } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
@@ -23,68 +23,109 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     (activeUser.role === 'user' && activeUser.id === selectedUserId)
   );
 
-  // --- BORRADOR DE PRONÓSTICOS ---
-  // Los cambios se acumulan en un borrador local y solo se persisten al pulsar
-  // "Guardar". Así el usuario controla explícitamente el guardado y recibe
-  // confirmación de que sus pronósticos quedaron almacenados.
-  const emptyPredictions = { matches: {} };
-  const [draft, setDraft] = useState(targetUser?.predictions || emptyPredictions);
-  const [isDirty, setIsDirty] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
+  // --- BORRADOR POR PARTIDO ---
+  // Cada partido tiene su propio botón "Guardar". Los cambios se acumulan en un
+  // borrador local por partido (localEdits) y solo se persisten al pulsar el
+  // botón de ese partido. saveStatus guarda el estado de guardado por partido.
+  const [localEdits, setLocalEdits] = useState({}); // { [matchId]: {homeScore, awayScore, penaltyWinner} }
+  const [saveStatus, setSaveStatus] = useState({}); // { [matchId]: 'saving' | 'saved' | 'error' }
 
-  // Re-sincronizar el borrador al cambiar de usuario seleccionado (patrón
-  // recomendado de React: ajustar estado durante el render al detectar el
-  // cambio, en lugar de un useEffect). targetUser se reconstruye en cada render
-  // del padre, por eso comparamos contra selectedUserId.
+  // Re-sincronizar (descartar borradores) al cambiar de usuario seleccionado.
+  // Patrón recomendado de React: ajustar estado durante el render al detectar el
+  // cambio, en lugar de usar un useEffect.
   const [syncedUserId, setSyncedUserId] = useState(selectedUserId);
   if (selectedUserId !== syncedUserId) {
     setSyncedUserId(selectedUserId);
-    setDraft(targetUser?.predictions || emptyPredictions);
-    setIsDirty(false);
-    setSaveStatus('idle');
+    setLocalEdits({});
+    setSaveStatus({});
   }
+
+  const hasUnsavedChanges = Object.keys(localEdits).length > 0;
 
   // Avisar antes de cerrar/recargar la pestaña si hay cambios sin guardar.
   useEffect(() => {
-    if (!isDirty) return;
+    if (!hasUnsavedChanges) return;
     const handler = (e) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, [hasUnsavedChanges]);
 
   const handleSelectUser = (newUserId) => {
-    if (isDirty && !window.confirm('Tienes cambios sin guardar que se perderán. ¿Deseas continuar?')) {
+    if (hasUnsavedChanges && !window.confirm('Tienes pronósticos sin guardar que se perderán. ¿Deseas continuar?')) {
       return;
     }
     setSelectedUserId(newUserId);
   };
 
-  const handleSave = useCallback(async () => {
-    if (!canEdit || !targetUser || saveStatus === 'saving') return;
-    setSaveStatus('saving');
-    try {
-      await updateUserPredictions(targetUser.id, draft);
-      setIsDirty(false);
-      setSaveStatus('saved');
-    } catch (err) {
-      console.error('Error al guardar los pronósticos:', err);
-      setSaveStatus('error');
-    }
-  }, [canEdit, targetUser, draft, saveStatus, updateUserPredictions]);
+  // Predicción guardada (persistida) de un partido
+  const getSavedPred = (matchId) => targetUser?.predictions?.matches?.[matchId] || {};
 
-  // Ocultar el aviso "Guardado ✓" tras unos segundos.
-  useEffect(() => {
-    if (saveStatus !== 'saved') return;
-    const t = setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 3000);
-    return () => clearTimeout(t);
-  }, [saveStatus]);
+  // Predicción mostrada actualmente (borrador si existe, si no la guardada)
+  const getCurrentPred = (matchId) =>
+    matchId in localEdits ? localEdits[matchId] : getSavedPred(matchId);
+
+  // ¿El partido tiene cambios sin guardar?
+  const isMatchDirty = (matchId) => {
+    if (!(matchId in localEdits)) return false;
+    const saved = getSavedPred(matchId);
+    const edit = localEdits[matchId];
+    return (edit.homeScore ?? null) !== (saved.homeScore ?? null)
+      || (edit.awayScore ?? null) !== (saved.awayScore ?? null)
+      || (edit.penaltyWinner ?? null) !== (saved.penaltyWinner ?? null);
+  };
+
+  const applyLocalEdit = (matchId, patch) => {
+    setLocalEdits(prev => {
+      const base = matchId in prev ? prev[matchId] : getSavedPred(matchId);
+      return { ...prev, [matchId]: { ...base, ...patch } };
+    });
+    setSaveStatus(prev => {
+      if (!prev[matchId]) return prev;
+      const next = { ...prev };
+      delete next[matchId];
+      return next;
+    });
+  };
+
+  const handleSaveMatch = async (matchId) => {
+    if (!canEdit || !targetUser || !(matchId in localEdits)) return;
+    if (saveStatus[matchId] === 'saving') return;
+
+    const edit = localEdits[matchId];
+    const updatedPredictions = {
+      ...targetUser.predictions,
+      matches: {
+        ...targetUser.predictions?.matches,
+        [matchId]: { ...getSavedPred(matchId), ...edit }
+      }
+    };
+
+    setSaveStatus(prev => ({ ...prev, [matchId]: 'saving' }));
+    try {
+      await updateUserPredictions(targetUser.id, updatedPredictions);
+      setLocalEdits(prev => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
+      setSaveStatus(prev => ({ ...prev, [matchId]: 'saved' }));
+    } catch (err) {
+      console.error('Error al guardar el pronóstico:', err);
+      setSaveStatus(prev => ({ ...prev, [matchId]: 'error' }));
+    }
+  };
+
+  // Predicciones efectivas (guardadas + borradores) para calcular el bracket en vivo
+  const effectiveMatchesPred = useMemo(() => {
+    return { ...(targetUser?.predictions?.matches || {}), ...localEdits };
+  }, [targetUser?.predictions?.matches, localEdits]);
 
   const userResolvedData = useMemo(() => {
-    return resolveFullBracket(matches, draft?.matches || {});
-  }, [matches, draft?.matches]);
+    return resolveFullBracket(matches, effectiveMatchesPred);
+  }, [matches, effectiveMatchesPred]);
 
   const userBracket = userResolvedData.bracket;
   const userMatches = userResolvedData.unifiedMatches;
@@ -107,18 +148,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
 
-    setDraft(prev => ({
-      ...prev,
-      matches: {
-        ...prev.matches,
-        [matchId]: {
-          ...prev.matches?.[matchId],
-          [side]: isNaN(cleanValue) ? null : cleanValue
-        }
-      }
-    }));
-    setIsDirty(true);
-    setSaveStatus('idle');
+    applyLocalEdit(matchId, { [side]: isNaN(cleanValue) ? null : cleanValue });
   };
 
   const handlePredictionPenaltyWinnerChange = (matchId, penaltyWinner) => {
@@ -128,19 +158,8 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
     if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match))) return;
-    
-    setDraft(prev => ({
-      ...prev,
-      matches: {
-        ...prev.matches,
-        [matchId]: {
-          ...prev.matches?.[matchId],
-          penaltyWinner: penaltyWinner
-        }
-      }
-    }));
-    setIsDirty(true);
-    setSaveStatus('idle');
+
+    applyLocalEdit(matchId, { penaltyWinner });
   };
 
   // Stepper rápido para móviles
@@ -152,7 +171,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     const isOfficialized = actualMatch && actualMatch.homeScore !== null && actualMatch.awayScore !== null;
     if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(actualMatch))) return;
 
-    const currentPred = draft?.matches?.[match.id] || {};
+    const currentPred = getCurrentPred(match.id) || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
       ? currentPred[side]
       : 0;
@@ -167,7 +186,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     if (!actualMatch || actualMatch.homeScore === null || actualMatch.awayScore === null) {
       return <span className="text-[10px] text-gray-500 font-semibold uppercase">Pendiente</span>;
     }
-    const pred = draft?.matches?.[match.id];
+    const pred = getSavedPred(match.id);
     if (!pred || pred.homeScore === null || pred.homeScore === undefined || pred.awayScore === null || pred.awayScore === undefined) {
       return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-lg text-[10px] font-bold">Sin Predicción (0 pts)</span>;
     }
@@ -223,6 +242,62 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     }
   };
 
+  // Botón de guardado por partido. Verde con check cuando está guardado; cambia
+  // a ámbar cuando hay cambios sin guardar; rojo si falló el guardado.
+  const renderSaveButton = (matchId) => {
+    const status = saveStatus[matchId];
+    const dirty = isMatchDirty(matchId);
+    const saved = getSavedPred(matchId);
+    const hasSavedPred = saved.homeScore !== undefined && saved.homeScore !== null
+      && saved.awayScore !== undefined && saved.awayScore !== null;
+
+    if (status === 'saving') {
+      return (
+        <button disabled className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 border border-white/10 text-gray-300">
+          <Loader2 size={14} className="animate-spin" /> Guardando…
+        </button>
+      );
+    }
+
+    if (status === 'error') {
+      return (
+        <button
+          onClick={() => handleSaveMatch(matchId)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400 hover:bg-rose-500/25 transition-all"
+        >
+          <AlertCircle size={14} /> Reintentar
+        </button>
+      );
+    }
+
+    if (dirty) {
+      // Cambios sin guardar: el botón cambia de color (ámbar) para avisar.
+      return (
+        <button
+          onClick={() => handleSaveMatch(matchId)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-black hover:bg-amber-400 shadow-md animate-pulse transition-all"
+        >
+          <Save size={14} /> Guardar
+        </button>
+      );
+    }
+
+    // Sin cambios pendientes: estado guardado (check verde) o aún sin pronóstico.
+    if (hasSavedPred) {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-primary">
+          <CheckCircle2 size={14} /> Guardado
+        </span>
+      );
+    }
+
+    return (
+      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-400">
+        <Save size={14} /> Sin guardar
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       
@@ -260,59 +335,18 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
           </div>
         </div>
 
-        {/* Permisos + Guardado */}
-        <div className="flex flex-col items-stretch gap-2">
-          {/* Indicador de Permisos de Edición */}
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold justify-center ${canEdit ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
-            {canEdit ? (
-              <>
-                <CheckCircle2 size={14} />
-                <span>Tienes permiso para editar estas predicciones</span>
-              </>
-            ) : (
-              <>
-                <ShieldAlert size={14} className="text-amber-500" />
-                <span>Modo Lectura: No puedes editar estas predicciones</span>
-              </>
-            )}
-          </div>
-
-          {/* Botón Guardar + estado del guardado */}
-          {canEdit && (
-            <div className="flex items-center gap-2 justify-end">
-              {saveStatus === 'error' && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-rose-400">
-                  <AlertCircle size={14} /> No se pudo guardar. Reintenta.
-                </span>
-              )}
-              {saveStatus === 'saved' && !isDirty && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-primary">
-                  <CheckCircle2 size={14} /> Guardado
-                </span>
-              )}
-              {isDirty && saveStatus !== 'saving' && (
-                <span className="text-xs font-semibold text-amber-400">Cambios sin guardar</span>
-              )}
-              <button
-                onClick={handleSave}
-                disabled={!isDirty || saveStatus === 'saving'}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  isDirty && saveStatus !== 'saving'
-                    ? 'bg-emerald-primary text-white hover:bg-emerald-600 shadow-md'
-                    : 'bg-white/5 border border-white/10 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {saveStatus === 'saving' ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" /> Guardando…
-                  </>
-                ) : (
-                  <>
-                    <Save size={14} /> Guardar
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Indicador de Permisos de Edición */}
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold justify-center ${canEdit ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
+          {canEdit ? (
+            <>
+              <CheckCircle2 size={14} />
+              <span>Tienes permiso para editar estas predicciones</span>
+            </>
+          ) : (
+            <>
+              <ShieldAlert size={14} className="text-amber-500" />
+              <span>Modo Lectura: No puedes editar estas predicciones</span>
+            </>
           )}
         </div>
       </div>
@@ -366,7 +400,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
                 <div className="space-y-2">
                   {filteredMatches.map(match => {
-                    const pred = draft?.matches?.[match.id] || {};
+                    const pred = getCurrentPred(match.id) || {};
                     const homeVal = pred.homeScore !== undefined && pred.homeScore !== null ? pred.homeScore : '';
                     const awayVal = pred.awayScore !== undefined && pred.awayScore !== null ? pred.awayScore : '';
 
@@ -497,9 +531,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                           )}
                         </div>
 
-                        {/* Puntaje Obtenido */}
-                        <div className="min-w-[100px] text-center sm:text-right">
-                          {getMatchPointBadge(match)}
+                        {/* Botón Guardar por partido / Puntaje Obtenido */}
+                        <div className="min-w-[110px] flex flex-col items-center sm:items-end gap-1.5">
+                          {canEditMatch
+                            ? renderSaveButton(match.id)
+                            : getMatchPointBadge(match)}
                         </div>
                       </div>
                     );

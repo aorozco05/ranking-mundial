@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target, Loader2, AlertCircle } from 'lucide-react';
 import { calculateMatchPoints } from '../utils/scoring';
 import { hasMatchStarted } from '../utils/matchSchedule';
 
@@ -87,7 +87,58 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     }
   };
 
-  /* ---------- LÓGICA DE USUARIO: REGISTRAR PRONÓSTICOS (autoguardado) ---------- */
+  /* ---------- LÓGICA DE USUARIO: REGISTRAR PRONÓSTICOS (guardado por partido) ---------- */
+  // Cada partido tiene su propio botón "Guardar". Los cambios se acumulan en un
+  // borrador local por partido y solo se persisten al pulsar el botón.
+  const [predEdits, setPredEdits] = useState({});   // { [matchId]: {homeScore, awayScore, penaltyWinner} }
+  const [predStatus, setPredStatus] = useState({}); // { [matchId]: 'saving' | 'saved' | 'error' }
+
+  // Descartar borradores si cambia el usuario actual (patrón recomendado de
+  // React: ajustar estado durante el render al detectar el cambio).
+  const [syncedUserId, setSyncedUserId] = useState(targetUser?.id);
+  if (targetUser?.id !== syncedUserId) {
+    setSyncedUserId(targetUser?.id);
+    setPredEdits({});
+    setPredStatus({});
+  }
+
+  const hasUnsavedPreds = Object.keys(predEdits).length > 0;
+  useEffect(() => {
+    if (!hasUnsavedPreds) return;
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedPreds]);
+
+  const getSavedPred = (matchId) => targetUser?.predictions?.matches?.[matchId] || {};
+  const getCurrentPred = (matchId) =>
+    matchId in predEdits ? predEdits[matchId] : getSavedPred(matchId);
+
+  const isMatchDirty = (matchId) => {
+    if (!(matchId in predEdits)) return false;
+    const saved = getSavedPred(matchId);
+    const edit = predEdits[matchId];
+    return (edit.homeScore ?? null) !== (saved.homeScore ?? null)
+      || (edit.awayScore ?? null) !== (saved.awayScore ?? null)
+      || (edit.penaltyWinner ?? null) !== (saved.penaltyWinner ?? null);
+  };
+
+  const applyLocalEdit = (matchId, patch) => {
+    setPredEdits(prev => {
+      const base = matchId in prev ? prev[matchId] : getSavedPred(matchId);
+      return { ...prev, [matchId]: { ...base, ...patch } };
+    });
+    setPredStatus(prev => {
+      if (!prev[matchId]) return prev;
+      const next = { ...prev };
+      delete next[matchId];
+      return next;
+    });
+  };
+
   const handlePredictionScoreChange = (matchId, side, value) => {
     if (!targetUser) return;
 
@@ -96,19 +147,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     if (isOfficialized || hasMatchStarted(match)) return; // No editar si ya comenzó o finalizó
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
-
-    const updatedPredictions = {
-      ...targetUser.predictions,
-      matches: {
-        ...targetUser.predictions.matches,
-        [matchId]: {
-          ...targetUser.predictions.matches?.[matchId],
-          [side]: isNaN(cleanValue) ? null : cleanValue
-        }
-      }
-    };
-
-    updateUserPredictions(targetUser.id, updatedPredictions);
+    applyLocalEdit(matchId, { [side]: isNaN(cleanValue) ? null : cleanValue });
   };
 
   const adjustPredictionScore = (match, side, delta) => {
@@ -116,7 +155,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     const isOfficialized = match.homeScore !== null && match.awayScore !== null;
     if (isOfficialized || hasMatchStarted(match)) return;
 
-    const currentPred = targetUser.predictions?.matches?.[match.id] || {};
+    const currentPred = getCurrentPred(match.id) || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
       ? currentPred[side]
       : 0;
@@ -130,17 +169,80 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
     if (isOfficialized || hasMatchStarted(match)) return;
 
+    applyLocalEdit(matchId, { penaltyWinner });
+  };
+
+  const handleSavePrediction = async (matchId) => {
+    if (!targetUser || !(matchId in predEdits)) return;
+    if (predStatus[matchId] === 'saving') return;
+
     const updatedPredictions = {
       ...targetUser.predictions,
       matches: {
-        ...targetUser.predictions.matches,
-        [matchId]: {
-          ...targetUser.predictions.matches?.[matchId],
-          penaltyWinner
-        }
+        ...targetUser.predictions?.matches,
+        [matchId]: { ...getSavedPred(matchId), ...predEdits[matchId] }
       }
     };
-    updateUserPredictions(targetUser.id, updatedPredictions);
+
+    setPredStatus(prev => ({ ...prev, [matchId]: 'saving' }));
+    try {
+      await updateUserPredictions(targetUser.id, updatedPredictions);
+      setPredEdits(prev => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
+      setPredStatus(prev => ({ ...prev, [matchId]: 'saved' }));
+    } catch (err) {
+      console.error('Error al guardar el pronóstico:', err);
+      setPredStatus(prev => ({ ...prev, [matchId]: 'error' }));
+    }
+  };
+
+  // Botón de guardado por partido (check verde si está guardado; ámbar si hay
+  // cambios sin guardar; rojo si falló el guardado).
+  const renderSaveButton = (matchId) => {
+    const status = predStatus[matchId];
+    const dirty = isMatchDirty(matchId);
+    const saved = getSavedPred(matchId);
+    const hasSavedPred = saved.homeScore !== undefined && saved.homeScore !== null
+      && saved.awayScore !== undefined && saved.awayScore !== null;
+
+    if (status === 'saving') {
+      return (
+        <button disabled className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 border border-white/10 text-gray-300">
+          <Loader2 size={14} className="animate-spin" /> Guardando…
+        </button>
+      );
+    }
+    if (status === 'error') {
+      return (
+        <button onClick={() => handleSavePrediction(matchId)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400 hover:bg-rose-500/25 transition-all">
+          <AlertCircle size={14} /> Reintentar
+        </button>
+      );
+    }
+    if (dirty) {
+      return (
+        <button onClick={() => handleSavePrediction(matchId)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-black hover:bg-amber-400 shadow-md animate-pulse transition-all">
+          <Save size={14} /> Guardar
+        </button>
+      );
+    }
+    if (hasSavedPred) {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-primary">
+          <CheckCircle2 size={14} /> Guardado
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-400">
+        <Save size={14} /> Sin guardar
+      </span>
+    );
   };
 
   const getPredictionBadge = (match) => {
@@ -301,7 +403,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
             }
 
             /* ----- Vista Usuario / Invitado: pronóstico ----- */
-            const pred = targetUser?.predictions?.matches?.[match.id] || {};
+            const pred = (isGuest ? getSavedPred(match.id) : getCurrentPred(match.id)) || {};
             const homeVal = pred.homeScore !== undefined && pred.homeScore !== null ? pred.homeScore : '';
             const awayVal = pred.awayScore !== undefined && pred.awayScore !== null ? pred.awayScore : '';
 
@@ -386,10 +488,10 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                   )}
                 </div>
 
-                {/* Estado del pronóstico (solo participantes, no invitados) */}
+                {/* Botón Guardar por partido / Estado del pronóstico (solo participantes) */}
                 {!isGuest && (
-                  <div className="min-w-[120px] text-center md:text-right">
-                    {getPredictionBadge(match)}
+                  <div className="min-w-[120px] flex flex-col items-center md:items-end gap-1.5">
+                    {canEditMatch ? renderSaveButton(match.id) : getPredictionBadge(match)}
                   </div>
                 )}
               </div>
