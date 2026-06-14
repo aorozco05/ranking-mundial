@@ -188,6 +188,9 @@ export default function App() {
   };
 
   // 4. Actualizar predicciones de un usuario
+  // Persiste PRIMERO en la base de datos y solo actualiza el estado local si el
+  // guardado fue exitoso. Si la escritura falla, propaga el error para que la UI
+  // pueda avisar al usuario (evita pérdidas silenciosas de pronósticos).
   const updateUserPredictions = async (userId, predictions) => {
     const updatedUsers = users.map(user => {
       if (user.id === userId) {
@@ -196,8 +199,8 @@ export default function App() {
       return user;
     });
 
-    setUsers(updatedUsers);
     await db.set('users', updatedUsers);
+    setUsers(updatedUsers);
   };
 
   // 5. Registrar resultado real de un partido (con soporte opcional de penaltis)
