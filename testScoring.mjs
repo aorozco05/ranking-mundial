@@ -7,7 +7,9 @@ const testCases = [
   { actual: { homeScore: 2, awayScore: 0 }, pred: { homeScore: 3, awayScore: 1 }, expected: 3, label: 'Ganador e Igual Diferencia (2-0 vs 3-1)' },
   { actual: { homeScore: 2, awayScore: 0 }, pred: { homeScore: 1, awayScore: 0 }, expected: 2, label: 'Ganador Simple (2-0 vs 1-0)' },
   { actual: { homeScore: 2, awayScore: 0 }, pred: { homeScore: 0, awayScore: 1 }, expected: 0, label: 'Perdedor (2-0 vs 0-1)' },
-  { actual: { homeScore: 1, awayScore: 1 }, pred: { homeScore: 2, awayScore: 2 }, expected: 3, label: 'Empate e Igual Diferencia (1-1 vs 2-2)' },
+  { actual: { homeScore: 1, awayScore: 1 }, pred: { homeScore: 1, awayScore: 1 }, expected: 5, label: 'Empate Exacto (1-1 vs 1-1)' },
+  { actual: { homeScore: 1, awayScore: 1 }, pred: { homeScore: 2, awayScore: 2 }, expected: 2, label: 'Empate Simple sin bono por diferencia (1-1 vs 2-2)' },
+  { actual: { homeScore: 0, awayScore: 0 }, pred: { homeScore: 3, awayScore: 3 }, expected: 2, label: 'Empate Simple sin bono por diferencia (0-0 vs 3-3)' },
   { actual: { homeScore: 1, awayScore: 1 }, pred: { homeScore: 1, awayScore: 0 }, expected: 0, label: 'Empate vs Ganador (1-1 vs 1-0)' }
 ];
 
