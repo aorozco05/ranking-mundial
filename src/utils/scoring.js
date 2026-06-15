@@ -5,7 +5,8 @@ import { resolveFullBracket } from './bracketResolver';
  * 
  * Reglas de Puntuación:
  * 1. Adivinar Marcador Exacto = 5 puntos
- * 2. Adivinar Ganador y diferencia de Goles = 3 puntos
+ * 2. Adivinar Ganador y diferencia de Goles = 3 puntos (no aplica en empates,
+ *    ya que la diferencia de goles siempre es 0)
  * 3. Adivinar Equipo Ganador o empate = 2 puntos
  * 4. Adivinar equipos que avanzan a:
  *    - Dieciseisavos (R32): 6 puntos por equipo
@@ -53,10 +54,13 @@ export function calculateMatchPoints(prediction, actual) {
   }
 
   // 2. Adivinar Ganador y diferencia de Goles
+  // En un empate la diferencia de goles siempre es 0, por lo que acertarla es
+  // trivial; el punto por diferencia solo aplica cuando hay un ganador. Si el
+  // resultado real es empate (y no fue marcador exacto), se otorgan 2 puntos.
   const actualDiff = actHome - actAway;
   const predictedDiff = predHome - predAway;
 
-  if (actualDiff === predictedDiff) {
+  if (actualResult !== 0 && actualDiff === predictedDiff) {
     return { points: 3, category: 'Ganador e Igual Diferencia' };
   }
 
