@@ -4,6 +4,7 @@ import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
 import { resolveFullBracket } from '../utils/bracketResolver';
 import { hasMatchStarted } from '../utils/matchSchedule';
+import { translateTeam } from '../utils/teamNames';
 
 export default function UserPredictions({ users, matches, actualBracket, updateUserPredictions, activeUser }) {
   const [selectedUserId, setSelectedUserId] = useState(activeUser?.id && activeUser?.id !== 'admin' && activeUser?.id !== 'guest' ? activeUser.id : (users[0]?.id || ''));
@@ -214,7 +215,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     const isDefined = actualList.some(t => t);
 
     if (!isDefined) {
-      return { label: `Elegido: ${teamName}`, class: 'text-gray-400 font-medium' };
+      return { label: `Elegido: ${translateTeam(teamName)}`, class: 'text-gray-400 font-medium' };
     }
 
     const isHit = actualList.includes(teamName);
@@ -231,7 +232,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
     const actualTeam = actualBracket?.[field];
     if (!actualTeam) {
-      return { label: `Elegido: ${teamName}`, class: 'text-gray-400 font-medium' };
+      return { label: `Elegido: ${translateTeam(teamName)}`, class: 'text-gray-400 font-medium' };
     }
 
     if (actualTeam === teamName) {
@@ -423,7 +424,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                         {/* Equipos y Controles Stepper */}
                         <div className="flex flex-col flex-grow items-center justify-center w-full">
                            <div className="flex items-center justify-center gap-3 w-full">
-                            <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</span>
+                            <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</span>
                             
                             <div className="flex items-center gap-1 bg-white/5 border border-white/15 p-1 rounded-xl">
                               {canEditMatch ? (
@@ -469,7 +470,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                               )}
                             </div>
 
-                            <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</span>
+                            <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.awayTeam)}</span>
                           </div>
 
                           {/* Horario de inicio y estado de cierre del pronóstico */}
@@ -507,7 +508,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                                       : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
                                   }`}
                                 >
-                                  {match.homeTeam}
+                                  {translateTeam(match.homeTeam)}
                                 </button>
                                 <button
                                   type="button"
@@ -518,7 +519,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                                       : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
                                   }`}
                                 >
-                                  {match.awayTeam}
+                                  {translateTeam(match.awayTeam)}
                                 </button>
                               </div>
                             </div>
@@ -526,7 +527,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
                           {isTie && !canEdit && pred.penaltyWinner && (
                             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1.5 text-center">
-                              Avanza penaltis: <span className="text-emerald-primary font-bold">{pred.penaltyWinner === 'away' ? match.awayTeam : match.homeTeam}</span>
+                              Avanza penaltis: <span className="text-emerald-primary font-bold">{translateTeam(pred.penaltyWinner === 'away' ? match.awayTeam : match.homeTeam)}</span>
                             </div>
                           )}
                         </div>
@@ -557,7 +558,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     <span className="text-xs text-gray-400 block font-semibold">CAMPEÓN PREDICHO</span>
                     <span className={`text-lg font-black mt-1 block ${userBracket.champion && !userBracket.champion.includes('Campeón') && !userBracket.champion.includes('Ganador') ? 'text-gold' : 'text-gray-500 italic'}`}>
                       {userBracket.champion && !userBracket.champion.includes('Campeón') && !userBracket.champion.includes('Ganador')
-                        ? `🏆 ${userBracket.champion}` 
+                        ? `🏆 ${translateTeam(userBracket.champion)}`
                         : 'Por definir'}
                     </span>
                   </div>
@@ -565,7 +566,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     <span className="text-xs text-gray-400 block font-semibold">SUBCAMPEÓN PREDICHO</span>
                     <span className={`text-sm font-bold mt-1 block ${userBracket.runnerUp && !userBracket.runnerUp.includes('Subcampeón') && !userBracket.runnerUp.includes('Ganador') ? 'text-gray-200' : 'text-gray-500 italic'}`}>
                       {userBracket.runnerUp && !userBracket.runnerUp.includes('Subcampeón') && !userBracket.runnerUp.includes('Ganador')
-                        ? `🥈 ${userBracket.runnerUp}` 
+                        ? `🥈 ${translateTeam(userBracket.runnerUp)}`
                         : 'Por definir'}
                     </span>
                   </div>
@@ -614,7 +615,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                                   : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-primary'
                               }`}
                             >
-                              {pending ? (t?.startsWith('3-') ? `Tercero (${t.split('-')[1]})` : t) : t}
+                              {pending ? (t?.startsWith('3-') ? `Tercero (${t.split('-')[1]})` : t) : translateTeam(t)}
                             </span>
                           );
                         })}
@@ -720,7 +721,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                                   className="bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-[10px] text-gray-300 flex items-center gap-1"
                                   title={status.label}
                                 >
-                                  {team}
+                                  {translateTeam(team)}
                                   {status.label.includes('✅') && <span className="text-emerald-primary text-[8px]">●</span>}
                                   {status.label.includes('❌') && <span className="text-rose-500 text-[8px]">●</span>}
                                 </span>

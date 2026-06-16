@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus, Users, ChevronDown } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
+import { translateTeam } from '../utils/teamNames';
 
 export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole, users = [] }) {
   const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
@@ -226,7 +227,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   <div className="flex flex-col flex-grow items-center justify-center">
                     <div className="flex items-center justify-center gap-3 select-none w-full">
                       {/* Local */}
-                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</div>
+                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</div>
 
                       {/* Inputs de marcador (Con botones stepper para móviles) */}
                       <div className="flex items-center gap-1">
@@ -274,7 +275,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                       </div>
 
                       {/* Visitante */}
-                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</div>
+                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.awayTeam)}</div>
                     </div>
 
                     {/* Selector de Penaltis (si hay empate en eliminatorias) */}
@@ -303,7 +304,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                                 : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
                             }`}
                           >
-                            {match.homeTeam}
+                            {translateTeam(match.homeTeam)}
                           </button>
                           <button
                             type="button"
@@ -324,7 +325,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                                 : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
                             }`}
                           >
-                            {match.awayTeam}
+                            {translateTeam(match.awayTeam)}
                           </button>
                         </div>
                       </div>
@@ -332,7 +333,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
 
                     {!isAdmin && hasScore && parseInt(match.homeScore, 10) === parseInt(match.awayScore, 10) && (
                       <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1.5 text-center">
-                        Avanza penaltis: <span className="text-emerald-primary font-bold">{match.penaltyWinner === 'away' ? match.awayTeam : match.homeTeam}</span>
+                        Avanza penaltis: <span className="text-emerald-primary font-bold">{translateTeam(match.penaltyWinner === 'away' ? match.awayTeam : match.homeTeam)}</span>
                       </div>
                     )}
                   </div>
@@ -431,7 +432,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   <span className="text-xs text-gray-400 block font-semibold">CAMPEÓN OFICIAL</span>
                   <span className="text-lg font-black text-gold mt-1 block">
                     {actualBracket.champion && !actualBracket.champion.includes('Campeón') && !actualBracket.champion.includes('Ganador')
-                      ? `🏆 ${actualBracket.champion}` 
+                      ? `🏆 ${translateTeam(actualBracket.champion)}`
                       : 'Pendiente'}
                   </span>
                 </div>
@@ -439,7 +440,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   <span className="text-xs text-gray-400 block font-semibold">SUBCAMPEÓN</span>
                   <span className="text-sm font-bold text-gray-200 mt-1 block">
                     {actualBracket.runnerUp && !actualBracket.runnerUp.includes('Subcampeón') && !actualBracket.runnerUp.includes('Ganador')
-                      ? `🥈 ${actualBracket.runnerUp}` 
+                      ? `🥈 ${translateTeam(actualBracket.runnerUp)}`
                       : 'Pendiente'}
                   </span>
                 </div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ListOrdered, ChevronLeft, ChevronRight } from 'lucide-react';
 import { calculateGroupStandings } from '../utils/bracketResolver';
+import { translateTeam } from '../utils/teamNames';
 
 const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
@@ -122,7 +123,7 @@ export default function GroupStandings({ matches }) {
                       {index + 1}
                     </span>
                   </td>
-                  <td className="p-3 font-bold text-white">{team.name}</td>
+                  <td className="p-3 font-bold text-white">{translateTeam(team.name)}</td>
                   <td className="p-3 text-center">{team.played}</td>
                   <td className="p-3 text-center">{team.won}</td>
                   <td className="p-3 text-center">{team.drawn}</td>
