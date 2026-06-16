@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target, Loader2, AlertCircle } from 'lucide-react';
 import { calculateMatchPoints } from '../utils/scoring';
 import { hasMatchStarted } from '../utils/matchSchedule';
+import { translateTeam } from '../utils/teamNames';
 
 // Obtener la fecha de hoy en formato YYYY-MM-DD según la zona horaria local
 const getTodayString = () => {
@@ -350,7 +351,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
 
                   <div className="flex flex-col flex-grow items-center justify-center">
                     <div className="flex items-center justify-center gap-3 w-full">
-                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</div>
+                      <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</div>
                       <div className="flex items-center gap-1 bg-white/5 border border-white/15 p-1 rounded-xl">
                         <button type="button" onClick={() => adjustScore(match, 'homeScore', -1)} className="w-7 h-7 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-300">
                           <Minus size={12} />
@@ -364,7 +365,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                           <Plus size={12} />
                         </button>
                       </div>
-                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</div>
+                      <div className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.awayTeam)}</div>
                     </div>
 
                     {isTie && (
@@ -374,12 +375,12 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                           <button type="button"
                             onClick={() => setEditingScores(prev => ({ ...prev, [match.id]: { ...prev[match.id], homeScore: homeVal, awayScore: awayVal, penaltyWinner: 'home' } }))}
                             className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${(currentEdit.penaltyWinner || match.penaltyWinner) === 'home' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
-                            {match.homeTeam}
+                            {translateTeam(match.homeTeam)}
                           </button>
                           <button type="button"
                             onClick={() => setEditingScores(prev => ({ ...prev, [match.id]: { ...prev[match.id], homeScore: homeVal, awayScore: awayVal, penaltyWinner: 'away' } }))}
                             className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${(currentEdit.penaltyWinner || match.penaltyWinner) === 'away' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
-                            {match.awayTeam}
+                            {translateTeam(match.awayTeam)}
                           </button>
                         </div>
                       </div>
@@ -423,7 +424,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
 
                 <div className="flex flex-col flex-grow items-center justify-center">
                   <div className="flex items-center justify-center gap-3 w-full">
-                    <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{match.homeTeam}</span>
+                    <span className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</span>
                     <div className="flex items-center gap-1 bg-white/5 border border-white/15 p-1 rounded-xl">
                       {canEditMatch ? (
                         <>
@@ -445,7 +446,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                         </div>
                       )}
                     </div>
-                    <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{match.awayTeam}</span>
+                    <span className="w-24 sm:w-28 text-left font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.awayTeam)}</span>
                   </div>
 
                   {/* Hora de inicio y aviso de cierre del pronóstico */}
@@ -477,11 +478,11 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                       <div className="flex gap-2">
                         <button type="button" onClick={() => handlePredictionPenaltyWinnerChange(match.id, 'home')}
                           className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${pred.penaltyWinner === 'home' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
-                          {match.homeTeam}
+                          {translateTeam(match.homeTeam)}
                         </button>
                         <button type="button" onClick={() => handlePredictionPenaltyWinnerChange(match.id, 'away')}
                           className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${pred.penaltyWinner === 'away' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
-                          {match.awayTeam}
+                          {translateTeam(match.awayTeam)}
                         </button>
                       </div>
                     </div>
