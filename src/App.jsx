@@ -68,18 +68,12 @@ export default function App() {
           await db.set('matches', storedMatches);
         }
 
-        // Asegurar que todos los usuarios cargados tengan una contraseña asignada (por ejemplo, para usuarios migrados)
-        let dbUpdated = false;
-        const usersWithPasswords = storedUsers.map(user => {
-          if (!user.password) {
-            dbUpdated = true;
-            return { ...user, password: '1234' };
-          }
-          return user;
-        });
-        if (dbUpdated) {
-          storedUsers = usersWithPasswords;
-          await db.set('users', storedUsers);
+        // Asegurar que todos los usuarios cargados tengan una contraseña asignada
+        // (migración). Se hace de forma transaccional para no pisar datos recientes.
+        if (storedUsers.some(user => !user.password)) {
+          storedUsers = await db.updateUsers(prev =>
+            prev.map(user => (user.password ? user : { ...user, password: '1234' }))
+          );
         }
 
         setUsers(storedUsers);
@@ -99,6 +93,35 @@ export default function App() {
     };
 
     initDatabase();
+  }, []);
+
+  // Refrescar usuarios y partidos al volver a la app (foco/visibilidad). Así el
+  // admin ve los pronósticos recién guardados por otros y cada quien recupera el
+  // estado más reciente sin tener que recargar manualmente la página.
+  useEffect(() => {
+    const refreshData = async () => {
+      try {
+        const [latestUsers, latestMatches] = await Promise.all([
+          db.get('users'),
+          db.get('matches')
+        ]);
+        if (Array.isArray(latestUsers)) setUsers(latestUsers);
+        if (Array.isArray(latestMatches) && latestMatches.length > 0) setMatches(latestMatches);
+      } catch (err) {
+        console.error('Error al refrescar datos:', err);
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshData();
+    };
+
+    window.addEventListener('focus', refreshData);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   // Calcular el bracket real y partidos resueltos dinámicamente
@@ -142,17 +165,18 @@ export default function App() {
       }
     };
 
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    db.set('users', updatedUsers);
+    // Persistir de forma segura (transacción): se agrega sin reescribir/pisar a
+    // los demás usuarios. Se devuelve newUser de inmediato para el flujo de login.
+    db.updateUsers(prev => [...prev, newUser])
+      .then(setUsers)
+      .catch(err => console.error('Error al agregar usuario:', err));
     return newUser;
   };
 
   // 2. Eliminar usuario
   const deleteUser = async (userId) => {
-    const updatedUsers = users.filter(user => user.id !== userId);
+    const updatedUsers = await db.updateUsers(prev => prev.filter(user => user.id !== userId));
     setUsers(updatedUsers);
-    await db.set('users', updatedUsers);
 
     // Si el usuario eliminado es el logueado actualmente, cerrar sesión
     if (currentUser && currentUser.id === userId) {
@@ -162,44 +186,32 @@ export default function App() {
 
   // 3. Restablecer predicciones de un usuario
   const resetUserPredictions = async (userId) => {
-    const updatedUsers = users.map(user => {
-      if (user.id === userId) {
-        return {
-          ...user,
-          predictions: {
-            matches: {},
-            bracket: {
-              r32: Array(32).fill(null),
-              r16: Array(16).fill(null),
-              qf: Array(8).fill(null),
-              sf: Array(4).fill(null),
-              final: Array(2).fill(null),
-              champion: null,
-              runnerUp: null
-            }
-          }
-        };
+    const emptyPredictions = {
+      matches: {},
+      bracket: {
+        r32: Array(32).fill(null),
+        r16: Array(16).fill(null),
+        qf: Array(8).fill(null),
+        sf: Array(4).fill(null),
+        final: Array(2).fill(null),
+        champion: null,
+        runnerUp: null
       }
-      return user;
-    });
-
+    };
+    const updatedUsers = await db.updateUsers(prev =>
+      prev.map(user => (user.id === userId ? { ...user, predictions: emptyPredictions } : user))
+    );
     setUsers(updatedUsers);
-    await db.set('users', updatedUsers);
   };
 
   // 4. Actualizar predicciones de un usuario
-  // Persiste PRIMERO en la base de datos y solo actualiza el estado local si el
-  // guardado fue exitoso. Si la escritura falla, propaga el error para que la UI
-  // pueda avisar al usuario (evita pérdidas silenciosas de pronósticos).
+  // Usa una actualización transaccional: lee la versión más reciente del array
+  // de usuarios y modifica SOLO al usuario objetivo. Así nunca se pierden los
+  // pronósticos de otros (ni los propios por una copia local desactualizada).
   const updateUserPredictions = async (userId, predictions) => {
-    const updatedUsers = users.map(user => {
-      if (user.id === userId) {
-        return { ...user, predictions };
-      }
-      return user;
-    });
-
-    await db.set('users', updatedUsers);
+    const updatedUsers = await db.updateUsers(prev =>
+      prev.map(user => (user.id === userId ? { ...user, predictions } : user))
+    );
     setUsers(updatedUsers);
   };
 
