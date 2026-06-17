@@ -2,7 +2,7 @@
 // y hace un fallback automático a IndexedDB si no están configuradas las credenciales de Firebase.
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 
 // --- IMPLEMENTACIÓN DE FALLBACK CON INDEXEDDB ---
 class IndexedDBFallback {
@@ -69,6 +69,16 @@ class IndexedDBFallback {
       request.onerror = () => reject(request.error);
     });
   }
+
+  // Actualiza el array de usuarios de forma atómica (leer-modificar-escribir).
+  // El navegador procesa esto de forma secuencial por pestaña, evitando que un
+  // guardado pise los datos guardados por otro flujo.
+  async updateUsers(mutator) {
+    const current = (await this.get('users')) || [];
+    const result = mutator(Array.isArray(current) ? current : []);
+    await this.set('users', result);
+    return result;
+  }
 }
 
 // --- VERIFICACIÓN DE CREDENCIALES ---
@@ -129,6 +139,22 @@ if (apiKey && projectId) {
 
         const docRef = doc(firestore, 'polla', key);
         await deleteDoc(docRef);
+      },
+
+      // Actualiza el array de usuarios dentro de una transacción de Firestore.
+      // Lee la versión MÁS reciente del documento, aplica el cambio (solo al
+      // usuario objetivo) y la escribe. Si dos dispositivos escriben a la vez,
+      // Firestore reintenta automáticamente, evitando que se pierdan pronósticos.
+      async updateUsers(mutator) {
+        const docRef = doc(firestore, 'polla', 'users');
+        let result;
+        await runTransaction(firestore, async (tx) => {
+          const snap = await tx.get(docRef);
+          const current = snap.exists() && Array.isArray(snap.data().data) ? snap.data().data : [];
+          result = mutator(current);
+          tx.set(docRef, { data: result });
+        });
+        return result;
       },
 
       async clear() {
