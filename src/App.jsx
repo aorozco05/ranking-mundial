@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   LayoutDashboard, 
   CalendarDays, 
@@ -21,7 +22,7 @@ import Login from './components/Login';
 
 import db from './utils/db';
 import { resolveFullBracket } from './utils/bracketResolver';
-import { calculateUserTotalScore } from './utils/scoring';
+import { calculateUserTotalScore, calculateMatchPoints } from './utils/scoring';
 import { INITIAL_MATCHES, INITIAL_KNOCKOUT_MATCHES } from './utils/mockData';
 
 export default function App() {
@@ -268,17 +269,57 @@ export default function App() {
     }
   };
 
-  // 8. Exportar datos a JSON
+  // 8. Exportar datos a Excel (una pestaña por usuario con pronósticos y puntos)
   const handleExportData = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
-      JSON.stringify({ users, matches }, null, 2)
-    );
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `polla_mundial_db_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    const wb = XLSX.utils.book_new();
+
+    const groupMatches = resolvedMatches.filter(m => m.stage === 'groups');
+
+    users.forEach(user => {
+      const preds = user.predictions?.matches || {};
+      const rows = [];
+
+      // Encabezado
+      rows.push(['Partido', 'Local', 'Visitante', 'Pronóstico Local', 'Pronóstico Visitante', 'Resultado Real', 'Puntos']);
+
+      groupMatches.forEach(match => {
+        const pred = preds[match.id];
+        const hasResult = match.homeScore !== null && match.awayScore !== null;
+        const predStr = pred ? `${pred.homeScore ?? '-'} - ${pred.awayScore ?? '-'}` : '-';
+        const resultStr = hasResult ? `${match.homeScore} - ${match.awayScore}` : 'Por jugar';
+
+        const pts = pred && hasResult ? calculateMatchPoints(pred, match).points : null;
+
+        rows.push([
+          `${match.homeTeam} vs ${match.awayTeam}`,
+          match.homeTeam,
+          match.awayTeam,
+          pred ? (pred.homeScore ?? '-') : '-',
+          pred ? (pred.awayScore ?? '-') : '-',
+          resultStr,
+          pts !== null ? pts : '-'
+        ]);
+      });
+
+      // Separador y resumen de puntos
+      const scoreDetails = calculateUserTotalScore(user.predictions, resolvedMatches, actualBracket);
+      rows.push([]);
+      rows.push(['RESUMEN DE PUNTOS', '', '', '', '', '', '']);
+      rows.push(['Puntos en partidos de grupos', '', '', '', '', '', scoreDetails.matchPoints]);
+      rows.push(['Puntos en llave (bracket)', '', '', '', '', '', scoreDetails.bracketPoints]);
+      rows.push(['TOTAL', '', '', '', '', '', scoreDetails.total]);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+
+      // Ancho de columnas
+      ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 10 }];
+
+      // Nombre de pestaña: sanitizar para Excel (máx 31 chars, sin caracteres especiales)
+      const sheetName = user.name.replace(/[\\/*?[\]:]/g, '').slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    XLSX.writeFile(wb, `polla_mundial_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // 9. Importar datos desde JSON
