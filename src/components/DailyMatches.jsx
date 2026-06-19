@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target, Loader2, AlertCircle } from 'lucide-react';
+import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 import { calculateMatchPoints } from '../utils/scoring';
 import { hasMatchStarted } from '../utils/matchSchedule';
 import { translateTeam } from '../utils/teamNames';
@@ -387,11 +387,24 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-end gap-2">
                     {hasResult && !isEdited ? (
-                      <span className="text-emerald-primary text-xs font-semibold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
-                        <CheckCircle2 size={13} /> Oficial
-                      </span>
+                      <>
+                        <span className="text-emerald-primary text-xs font-semibold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                          <CheckCircle2 size={13} /> Oficial
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('¿Seguro que deseas borrar el resultado de este partido?')) {
+                              updateMatchResult(match.id, null, null, 'scheduled', null);
+                            }
+                          }}
+                          className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl transition-all"
+                          title="Borrar resultado"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
                     ) : (
                       <button onClick={() => handleSaveResult(match)} disabled={homeVal === '' || awayVal === ''}
                         className="w-full md:w-auto bg-emerald-primary hover:bg-emerald-600 disabled:bg-white/10 disabled:text-gray-500 px-3.5 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-1">
