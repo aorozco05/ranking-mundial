@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus, Users, ChevronDown } from 'lucide-react';
+import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus, Users, ChevronDown, Trash2 } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
 import { translateTeam } from '../utils/teamNames';
@@ -342,9 +342,22 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   {isAdmin && (
                     <div className="flex flex-col items-stretch md:items-end gap-2">
                       {hasScore && !isEdited ? (
-                        <span className="text-emerald-primary text-xs font-semibold flex items-center justify-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
-                          <CheckCircle2 size={13} /> Oficial
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-primary text-xs font-semibold flex items-center justify-center gap-1 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                            <CheckCircle2 size={13} /> Oficial
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('¿Seguro que deseas borrar el resultado de este partido?')) {
+                                updateMatchResult(match.id, null, null, 'scheduled', null);
+                              }
+                            }}
+                            className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl transition-all"
+                            title="Borrar resultado"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       ) : (
                         <button
                           onClick={() => handleSaveResult(match)}
