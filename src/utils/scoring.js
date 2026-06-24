@@ -1,4 +1,4 @@
-import { resolveFullBracket } from './bracketResolver';
+// import { resolveFullBracket } from './bracketResolver'; // Deshabilitado: cálculo de llaves temporalmente apagado
 
 /**
  * Calcula el puntaje de un usuario en base a sus predicciones y los resultados reales del torneo.
@@ -18,6 +18,25 @@ import { resolveFullBracket } from './bracketResolver';
  * 6. Adivinar Subcampeón = 15 puntos
  * * Nota: Los puntos por resultados de partidos solo aplican para la fase de grupos.
  */
+
+// Estructura de detalles de llaves en cero, usada mientras el cálculo de
+// llaves está deshabilitado temporalmente.
+const EMPTY_BRACKET_DETAILS = {
+  r32Points: 0,
+  r16Points: 0,
+  qfPoints: 0,
+  sfPoints: 0,
+  finalPoints: 0,
+  championPoints: 0,
+  runnerUpPoints: 0,
+  r32Hits: 0,
+  r16Hits: 0,
+  qfHits: 0,
+  sfHits: 0,
+  finalHits: 0,
+  championHit: false,
+  runnerUpHit: false
+};
 
 export function calculateMatchPoints(prediction, actual) {
   // Si el partido no se ha jugado o no hay predicción, 0 puntos
@@ -206,8 +225,13 @@ export function calculateUserTotalScore(userPredictions, actualMatches, actualBr
     }
   });
 
-  const { bracket: userComputedBracket } = resolveFullBracket(actualMatches, userPredictions.matches || {});
-  const bracketRes = calculateBracketPoints(userComputedBracket, actualBracket);
+  // NOTA TEMPORAL: El sistema de llaves (bracket) está deshabilitado por ahora.
+  // Los puntos de llaves se fuerzan a 0 hasta que se reactive el cálculo.
+  // Para reactivarlo: descomentar el import de resolveFullBracket arriba,
+  // descomentar las dos líneas siguientes y usar bracketRes.total.
+  // const { bracket: userComputedBracket } = resolveFullBracket(actualMatches, userPredictions.matches || {});
+  // const bracketRes = calculateBracketPoints(userComputedBracket, actualBracket);
+  const bracketRes = { total: 0, details: EMPTY_BRACKET_DETAILS };
   const total = matchPoints + bracketRes.total;
 
   return {
