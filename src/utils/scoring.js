@@ -17,7 +17,7 @@ import { resolveFullBracket } from './bracketResolver';
  * 5. Campeón y Subcampeón: NO se calculan según avanza el bracket. El usuario
  *    selecciona directamente qué equipo será campeón y cuál subcampeón.
  *    - Adivinar Campeón = 30 puntos
- *    - Adivinar Subcampeón = 15 puntos
+ *    - Adivinar Subcampeón = 20 puntos
  * * Nota: Los puntos por resultados de partidos solo aplican para la fase de grupos.
  */
 
@@ -140,7 +140,7 @@ export function calculateBracketPoints(userBracket, actualBracket) {
     points += 30;
   }
 
-  // Subcampeón - 15 pts (selección directa del usuario, no derivada del bracket)
+  // Subcampeón - 20 pts (selección directa del usuario, no derivada del bracket)
   if (
     userBracket.runnerUp &&
     actualBracket.runnerUp &&
@@ -148,8 +148,8 @@ export function calculateBracketPoints(userBracket, actualBracket) {
     userBracket.runnerUp === actualBracket.runnerUp
   ) {
     details.runnerUpHit = true;
-    details.runnerUpPoints = 15;
-    points += 15;
+    details.runnerUpPoints = 20;
+    points += 20;
   }
 
   return { total: points, details };

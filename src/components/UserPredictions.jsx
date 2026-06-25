@@ -271,7 +271,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     }
 
     if (actualTeam === teamName) {
-      const pts = field === 'champion' ? 30 : 15;
+      const pts = field === 'champion' ? 30 : 20;
       return { label: `🏆 Acertado (+${pts}!)`, class: 'text-gold font-bold' };
     } else {
       return { label: `❌ Fallado`, class: 'text-rose-500' };
@@ -628,7 +628,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
                     <div>
                       <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
-                        🥈 Subcampeón (+15)
+                        🥈 Subcampeón (+20)
                       </label>
                       {canEdit && !championLocked ? (
                         <select
