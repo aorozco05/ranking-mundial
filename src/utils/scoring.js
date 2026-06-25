@@ -1,5 +1,3 @@
-import { resolveFullBracket } from './bracketResolver';
-
 /**
  * Calcula el puntaje de un usuario en base a sus predicciones y los resultados reales del torneo.
  *
@@ -83,7 +81,42 @@ function isPlaceholder(name) {
   );
 }
 
-export function calculateBracketPoints(userBracket, actualBracket) {
+// Puntos de avance por fase: acertar el GANADOR del enfrentamiento real otorga
+// los puntos de la fase a la que ese equipo avanza.
+//   - Ganar en 2ª Fase (r32) → avanza a Octavos  → 9
+//   - Ganar en Octavos (r16)  → avanza a Cuartos  → 12
+//   - Ganar en Cuartos (qf)   → avanza a Semis    → 18
+// Semis y Final no otorgan puntos por avance: los finalistas se puntúan con la
+// selección directa de campeón (30) y subcampeón (20).
+const KO_ADVANCE_POINTS = { r32: 9, r16: 12, qf: 18 };
+
+export function getAdvancePointsForStage(stage) {
+  return KO_ADVANCE_POINTS[stage] || 0;
+}
+
+// Lado ganador de un partido (1=local, según marcador; empate definido por penales).
+export function winnerSideOf(homeScore, awayScore, penaltyWinner) {
+  if (homeScore === null || homeScore === undefined || homeScore === ''
+    || awayScore === null || awayScore === undefined || awayScore === '') return null;
+  const hs = parseInt(homeScore, 10);
+  const as = parseInt(awayScore, 10);
+  if (hs > as) return 'home';
+  if (as > hs) return 'away';
+  return penaltyWinner === 'away' ? 'away' : 'home';
+}
+
+/**
+ * Puntos de llaves calculados sobre los ENFRENTAMIENTOS REALES: por cada partido
+ * de eliminación directa ya jugado, si el usuario acertó qué equipo avanza
+ * (ganador del enfrentamiento real), recibe los puntos de avance de esa fase.
+ * Campeón y subcampeón se puntúan por selección directa del usuario.
+ *
+ * @param matchPredictions  predictions.matches del usuario (por id de partido)
+ * @param directBracket     predictions.bracket del usuario (champion/runnerUp)
+ * @param actualMatches     partidos reales (con equipos resueltos y resultados)
+ * @param actualBracket     bracket real (para campeón/subcampeón oficiales)
+ */
+export function calculateBracketPoints(matchPredictions, directBracket, actualMatches, actualBracket) {
   let points = 0;
   const details = {
     r16Points: 0,
@@ -98,54 +131,43 @@ export function calculateBracketPoints(userBracket, actualBracket) {
     runnerUpHit: false
   };
 
-  if (!userBracket || !actualBracket) return { total: 0, details };
+  const preds = matchPredictions || {};
 
-  // Las llaves se empiezan a calcular a partir de la fase de 32: la primera fase
-  // (clasificados de grupos / Dieciseisavos R32) NO otorga puntos. El primer tier
-  // puntuable es "equipos que avanzan a octavos".
+  (actualMatches || []).forEach(match => {
+    const pts = KO_ADVANCE_POINTS[match.stage];
+    if (!pts) return;
+    if (match.homeScore === null || match.homeScore === undefined
+      || match.awayScore === null || match.awayScore === undefined) return; // real sin jugar
+    const pred = preds[match.id];
+    if (!pred) return;
+    const realSide = winnerSideOf(match.homeScore, match.awayScore, match.penaltyWinner);
+    const predSide = winnerSideOf(pred.homeScore, pred.awayScore, pred.penaltyWinner);
+    if (!realSide || !predSide || realSide !== predSide) return;
+    points += pts;
+    // Mapear a la fase a la que avanza (octavos→r16, cuartos→qf, semis→sf)
+    if (match.stage === 'r32') { details.r16Hits++; details.r16Points += pts; }
+    else if (match.stage === 'r16') { details.qfHits++; details.qfPoints += pts; }
+    else if (match.stage === 'qf') { details.sfHits++; details.sfPoints += pts; }
+  });
 
-  // Octavos (avanzan a octavos / Round of 16) - 9 pts por equipo
-  if (userBracket.r16 && actualBracket.r16) {
-    const hits = userBracket.r16.filter(team => team && !isPlaceholder(team) && actualBracket.r16.includes(team));
-    details.r16Hits = hits.length;
-    details.r16Points = hits.length * 9;
-    points += details.r16Points;
-  }
-
-  // Cuartos (avanzan a cuartos / Quarterfinals) - 12 pts por equipo
-  if (userBracket.qf && actualBracket.qf) {
-    const hits = userBracket.qf.filter(team => team && !isPlaceholder(team) && actualBracket.qf.includes(team));
-    details.qfHits = hits.length;
-    details.qfPoints = hits.length * 12;
-    points += details.qfPoints;
-  }
-
-  // Semifinales (avanzan a semifinal) - 18 pts por equipo
-  if (userBracket.sf && actualBracket.sf) {
-    const hits = userBracket.sf.filter(team => team && !isPlaceholder(team) && actualBracket.sf.includes(team));
-    details.sfHits = hits.length;
-    details.sfPoints = hits.length * 18;
-    points += details.sfPoints;
-  }
-
-  // Campeón - 30 pts (selección directa del usuario, no derivada del bracket)
+  // Campeón - 30 pts (selección directa del usuario)
   if (
-    userBracket.champion &&
-    actualBracket.champion &&
-    !isPlaceholder(userBracket.champion) &&
-    userBracket.champion === actualBracket.champion
+    directBracket?.champion &&
+    actualBracket?.champion &&
+    !isPlaceholder(actualBracket.champion) &&
+    directBracket.champion === actualBracket.champion
   ) {
     details.championHit = true;
     details.championPoints = 30;
     points += 30;
   }
 
-  // Subcampeón - 20 pts (selección directa del usuario, no derivada del bracket)
+  // Subcampeón - 20 pts (selección directa del usuario)
   if (
-    userBracket.runnerUp &&
-    actualBracket.runnerUp &&
-    !isPlaceholder(userBracket.runnerUp) &&
-    userBracket.runnerUp === actualBracket.runnerUp
+    directBracket?.runnerUp &&
+    actualBracket?.runnerUp &&
+    !isPlaceholder(actualBracket.runnerUp) &&
+    directBracket.runnerUp === actualBracket.runnerUp
   ) {
     details.runnerUpHit = true;
     details.runnerUpPoints = 20;
@@ -193,17 +215,10 @@ export function calculateUserTotalScore(userPredictions, actualMatches, actualBr
   });
 
   // Llaves: a partir de la fase de 32. Octavos, cuartos y semifinales se calculan
-  // a partir de los pronósticos de marcadores de eliminación directa del usuario.
-  // El campeón y el subcampeón NO se derivan del avance del bracket: se toman de
-  // la selección directa del usuario (userPredictions.bracket).
-  const { bracket: userComputedBracket } = resolveFullBracket(actualMatches, userPredictions.matches || {});
+  // sobre los ENFRENTAMIENTOS REALES (acertar el ganador que avanza). El campeón
+  // y el subcampeón se toman de la selección directa del usuario.
   const directBracket = userPredictions.bracket || {};
-  const userBracket = {
-    ...userComputedBracket,
-    champion: directBracket.champion || null,
-    runnerUp: directBracket.runnerUp || null
-  };
-  const bracketRes = calculateBracketPoints(userBracket, actualBracket);
+  const bracketRes = calculateBracketPoints(matchPredictions, directBracket, actualMatches, actualBracket);
   const total = matchPoints + bracketRes.total;
 
   return {
