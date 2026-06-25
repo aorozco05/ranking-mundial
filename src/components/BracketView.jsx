@@ -474,7 +474,7 @@ export default function BracketView({
         >
           <div className="space-y-1">
             <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
-              <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
+              <Trophy size={20} className="text-gold" /> Partidos por Fases
               <ChevronDown size={20} className={`text-gray-400 transition-transform ${sectionOpen ? 'rotate-180' : ''}`} />
             </h2>
             <p className="text-xs text-gray-400">
@@ -487,7 +487,7 @@ export default function BracketView({
       ) : (
         <div className="text-center space-y-1">
           <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
-            <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
+            <Trophy size={20} className="text-gold" /> Partidos por Fases
           </h2>
           <p className="text-xs text-gray-400">
             {isUser ? 'Pronostica los partidos reales por fase' : 'Resultados al momento • selecciona la fase'}

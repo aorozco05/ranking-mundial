@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw, ChevronDown, ListOrdered } from 'lucide-react';
+import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw, ChevronDown, ListOrdered, CalendarClock, GitFork } from 'lucide-react';
 import DailyMatches from './DailyMatches';
 import GroupStandings from './GroupStandings';
 import BracketView from './BracketView';
@@ -13,6 +13,9 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
 
   // Secciones colapsables (consulta): arrancan cerradas para reducir el scroll.
   const [rankingOpen, setRankingOpen] = useState(false);
+
+  // Pestañas de la sección principal: partidos del día / partidos por fases.
+  const [activeMatchesTab, setActiveMatchesTab] = useState('daily');
 
   // Salto rápido a la Tabla de posiciones por grupos desde cualquier punto.
   const standingsRef = useRef(null);
@@ -88,15 +91,47 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
   return (
     <div className="space-y-6">
 
-      {/* PARTIDOS DEL DÍA — PRIORIDAD: primero y siempre visible */}
-      <DailyMatches
-        matches={matches}
-        currentUser={currentUser}
-        users={users}
-        updateMatchResult={updateMatchResult}
-        updateUserPredictions={updateUserPredictions}
-        phaseDeadlines={phaseDeadlines}
-      />
+      {/* SECCIÓN PRINCIPAL EN PESTAÑAS — Partidos del día / Partidos por fases */}
+      <div className="space-y-4">
+        <div className="flex justify-center">
+          <div className="flex gap-1.5 bg-white/5 border border-white/10 p-1.5 rounded-2xl">
+            <button
+              onClick={() => setActiveMatchesTab('daily')}
+              className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMatchesTab === 'daily' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <CalendarClock size={16} /> Partidos del Día
+            </button>
+            <button
+              onClick={() => setActiveMatchesTab('phases')}
+              className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMatchesTab === 'phases' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <GitFork size={16} /> Partidos por Fases
+            </button>
+          </div>
+        </div>
+
+        {activeMatchesTab === 'daily' ? (
+          <DailyMatches
+            matches={matches}
+            currentUser={currentUser}
+            users={users}
+            updateMatchResult={updateMatchResult}
+            updateUserPredictions={updateUserPredictions}
+            phaseDeadlines={phaseDeadlines}
+          />
+        ) : (
+          <BracketView
+            matches={matches}
+            actualBracket={actualBracket}
+            currentUser={currentUser}
+            users={users}
+            updateUserPredictions={updateUserPredictions}
+            updateMatchResult={updateMatchResult}
+            phaseDeadlines={phaseDeadlines}
+            updatePhaseDeadline={updatePhaseDeadline}
+          />
+        )}
+      </div>
 
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
       {leaderboard.length > 0 && (
@@ -411,20 +446,6 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
 
       </div>
       )}
-
-      {/* LLAVES DEL MUNDIAL (consulta, colapsable y cerrado por defecto, al final) */}
-      <BracketView
-        matches={matches}
-        actualBracket={actualBracket}
-        currentUser={currentUser}
-        users={users}
-        updateUserPredictions={updateUserPredictions}
-        updateMatchResult={updateMatchResult}
-        phaseDeadlines={phaseDeadlines}
-        updatePhaseDeadline={updatePhaseDeadline}
-        collapsible
-        defaultOpen={false}
-      />
 
       {/* BOTÓN FLOTANTE: salto rápido a la Tabla de posiciones por grupos */}
       <button
