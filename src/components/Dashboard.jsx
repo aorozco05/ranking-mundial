@@ -99,6 +99,7 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         currentUser={currentUser}
         users={users}
         updateUserPredictions={updateUserPredictions}
+        updateMatchResult={updateMatchResult}
         phaseDeadlines={phaseDeadlines}
         updatePhaseDeadline={updatePhaseDeadline}
       />

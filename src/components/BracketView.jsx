@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Trophy, Lock, Save, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, Settings, ChevronDown } from 'lucide-react';
+import { Trophy, Lock, Save, CheckCircle2, Calendar, Clock, Settings, ChevronDown, Trash2, Award } from 'lucide-react';
 import { translateTeam } from '../utils/teamNames';
+import { TEAMS } from '../utils/mockData';
 import { resolveFullBracket } from '../utils/bracketResolver';
-import { isPredictionLocked, isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
+import { isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
 
 // Estructura del árbol de llaves dividido en lado izquierdo y lado derecho,
 // siguiendo el emparejamiento definido en bracketResolver (k32 → k16 → k8 → k4 → k2).
@@ -49,6 +50,15 @@ const DEADLINE_FIELDS = [
   { key: 'final', label: 'Final' }
 ];
 
+// Puntos de avance ("llaves") que otorga el ganador de un partido al pasar a la
+// siguiente fase. SF y Final no otorgan puntos por avance: los finalistas se
+// puntúan mediante la selección directa de campeón (30) y subcampeón (20).
+const STAGE_ADVANCE = {
+  r32: { set: 'r16', pts: 9 },
+  r16: { set: 'qf', pts: 12 },
+  qf: { set: 'sf', pts: 18 }
+};
+
 // Un nombre es un marcador de posición (aún sin definir) si corresponde a una
 // etiqueta del bracket en lugar de a un equipo real.
 const isPlaceholder = (name) => {
@@ -84,6 +94,7 @@ export default function BracketView({
   currentUser,
   users = [],
   updateUserPredictions,
+  updateMatchResult,
   phaseDeadlines = {},
   updatePhaseDeadline
 }) {
@@ -93,110 +104,100 @@ export default function BracketView({
     () => (isUser ? users.find(u => u.id === currentUser.id) || null : null),
     [isUser, users, currentUser]
   );
-  const canEditPreds = isUser && !!targetUser;
 
   const [activeStage, setActiveStage] = useState('r32');
-  // 'mine' por defecto; para invitado/admin (sin pronósticos) mode cae a 'live'.
-  const [viewMode, setViewMode] = useState('mine');
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [editingScores, setEditingScores] = useState({}); // edición de resultados (admin)
+  const [championSaveStatus, setChampionSaveStatus] = useState(null);
 
-  // Borradores y estado de guardado por partido (modo "Mis Pronósticos").
-  const [predEdits, setPredEdits] = useState({});
-  const [predStatus, setPredStatus] = useState({});
+  const stage = STAGES.find(s => s.key === activeStage) || STAGES[0];
 
-  const mode = canEditPreds ? viewMode : 'live';
-
-  // Mapa de partidos reales (resultados oficiales): fuente para fecha/hora,
-  // bloqueo y la vista "Al Momento".
+  // Mapa de partidos reales (estructura y resultados oficiales).
   const liveMatchMap = useMemo(() => {
     const map = {};
     (matches || []).forEach(m => { map[m.id] = m; });
     return map;
   }, [matches]);
 
-  // Bracket calculado a partir de los pronósticos del usuario (modo "Mis Pronósticos").
-  const effectiveMatchesPred = useMemo(
-    () => ({ ...(targetUser?.predictions?.matches || {}), ...predEdits }),
-    [targetUser?.predictions?.matches, predEdits]
-  );
-  const userMatchMap = useMemo(() => {
-    if (!targetUser) return {};
-    const { unifiedMatches } = resolveFullBracket(matches, effectiveMatchesPred);
-    const map = {};
-    unifiedMatches.forEach(m => { map[m.id] = m; });
-    return map;
-  }, [targetUser, matches, effectiveMatchesPred]);
+  // Bracket que el usuario pronosticó (a partir de sus marcadores), usado solo
+  // para saber qué equipos esperaba que avanzaran y así mostrar sus puntos.
+  const userBracket = useMemo(() => {
+    if (!targetUser) return null;
+    return resolveFullBracket(matches, targetUser.predictions?.matches || {}).bracket;
+  }, [targetUser, matches]);
 
-  const stage = STAGES.find(s => s.key === activeStage) || STAGES[0];
+  /* ---------- Selección de campeón / subcampeón (usuario) ---------- */
+  const savedBracket = targetUser?.predictions?.bracket || {};
+  const selectedChampion = savedBracket.champion || '';
+  const selectedRunnerUp = savedBracket.runnerUp || '';
+  const knockoutStarted = matches.some(m => m.stage !== 'groups' && hasMatchStarted(m));
+  const championLocked = !isUser || knockoutStarted || isPhaseDeadlinePassed('final', phaseDeadlines);
 
-  /* ---------- Helpers de pronóstico (modo "Mis Pronósticos") ---------- */
-  const getSavedPred = (id) => targetUser?.predictions?.matches?.[id] || {};
-  const getCurrentPred = (id) => (id in predEdits ? predEdits[id] : getSavedPred(id));
-  const isMatchDirty = (id) => {
-    if (!(id in predEdits)) return false;
-    const saved = getSavedPred(id);
-    const edit = predEdits[id];
-    return (edit.homeScore ?? null) !== (saved.homeScore ?? null)
-      || (edit.awayScore ?? null) !== (saved.awayScore ?? null)
-      || (edit.penaltyWinner ?? null) !== (saved.penaltyWinner ?? null);
-  };
-  const applyLocalEdit = (id, patch) => {
-    setPredEdits(prev => {
-      const base = id in prev ? prev[id] : getSavedPred(id);
-      return { ...prev, [id]: { ...base, ...patch } };
-    });
-    setPredStatus(prev => {
-      if (!prev[id]) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-  const handleScoreChange = (id, side, value, realMatch) => {
-    if (!canEditPreds || isPredictionLocked(realMatch, phaseDeadlines)) return;
-    const clean = value === '' ? null : parseInt(value, 10);
-    applyLocalEdit(id, { [side]: isNaN(clean) ? null : clean });
-  };
-  const handlePenaltyChange = (id, penaltyWinner, realMatch) => {
-    if (!canEditPreds || isPredictionLocked(realMatch, phaseDeadlines)) return;
-    applyLocalEdit(id, { penaltyWinner });
-  };
-  const handleSave = async (id) => {
-    if (!canEditPreds || !(id in predEdits) || predStatus[id] === 'saving') return;
+  const handleChampionPick = async (field, value) => {
+    if (!isUser || !targetUser || championLocked) return;
     const updatedPredictions = {
       ...targetUser.predictions,
-      matches: {
-        ...targetUser.predictions?.matches,
-        [id]: { ...getSavedPred(id), ...predEdits[id] }
-      }
+      bracket: { ...targetUser.predictions?.bracket, [field]: value || null }
     };
-    setPredStatus(prev => ({ ...prev, [id]: 'saving' }));
+    setChampionSaveStatus('saving');
     try {
       await updateUserPredictions(targetUser.id, updatedPredictions);
-      setPredEdits(prev => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      setPredStatus(prev => ({ ...prev, [id]: 'saved' }));
+      setChampionSaveStatus('saved');
     } catch (err) {
-      console.error('Error al guardar el pronóstico:', err);
-      setPredStatus(prev => ({ ...prev, [id]: 'error' }));
+      console.error('Error al guardar campeón/subcampeón:', err);
+      setChampionSaveStatus('error');
     }
   };
 
-  /* ---------- Tarjeta de partido ---------- */
-  // Helpers de render (funciones, NO componentes): se invocan en línea para que
-  // los <input> conserven su identidad/enfoque entre renders al escribir.
-  const teamRow = ({ key, team, score, isWinner, played, byPenalty }) => {
+  /* ---------- Registro de resultados (admin) ---------- */
+  const handleScoreChange = (id, side, value) => {
+    const clean = value === '' ? '' : parseInt(value, 10);
+    setEditingScores(prev => ({ ...prev, [id]: { ...prev[id], [side]: isNaN(clean) ? '' : clean } }));
+  };
+  const setPenalty = (id, homeVal, awayVal, pen) => {
+    setEditingScores(prev => ({ ...prev, [id]: { ...prev[id], homeScore: homeVal, awayScore: awayVal, penaltyWinner: pen } }));
+  };
+  const handleSaveResult = (id) => {
+    const edit = editingScores[id];
+    if (!edit) return;
+    const homeScore = edit.homeScore === '' || edit.homeScore === undefined ? null : edit.homeScore;
+    const awayScore = edit.awayScore === '' || edit.awayScore === undefined ? null : edit.awayScore;
+    if (homeScore === null || awayScore === null) return;
+    const isTie = parseInt(homeScore, 10) === parseInt(awayScore, 10);
+    const penaltyWinner = edit.penaltyWinner || liveMatchMap[id]?.penaltyWinner;
+    if (isTie && !penaltyWinner) {
+      alert('Por favor selecciona el equipo que avanza (penales).');
+      return;
+    }
+    updateMatchResult(id, homeScore, awayScore, 'finished', isTie ? penaltyWinner : null);
+    setEditingScores(prev => { const n = { ...prev }; delete n[id]; return n; });
+  };
+  const handleClearResult = (id) => {
+    if (window.confirm('¿Borrar el resultado de este partido?')) {
+      updateMatchResult(id, null, null, 'scheduled', null);
+    }
+  };
+
+  /* ---------- Helpers de render (funciones, no componentes) ---------- */
+  const matchHeader = (m) => {
+    if (!m?.date && !m?.time) return null;
+    return (
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-white/2.5 border-b border-white/10 text-[10px] text-gray-400">
+        <span className="flex items-center gap-2">
+          {m?.date && <span className="flex items-center gap-1"><Calendar size={10} /> {m.date}</span>}
+          {m?.time && <span className="flex items-center gap-1"><Clock size={10} /> {m.time}</span>}
+        </span>
+      </div>
+    );
+  };
+
+  const teamRow = (key, team, score, isWinner, played, byPenalty) => {
     const pending = isPlaceholder(team);
     return (
       <div key={key} className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${isWinner ? 'bg-emerald-500/15' : ''}`}>
         <span className={`truncate ${pending ? 'text-gray-500 italic' : isWinner ? 'text-emerald-primary font-bold' : 'text-gray-200 font-semibold'}`}>
           {pending ? 'Por definir' : translateTeam(team)}
-          {isWinner && byPenalty && (
-            <span className="ml-1 text-[9px] text-gold font-bold align-top" title="Avanza por penales">PEN</span>
-          )}
+          {isWinner && byPenalty && <span className="ml-1 text-[9px] text-gold font-bold align-top" title="Avanza por penales">PEN</span>}
         </span>
         <span className={`tabular-nums shrink-0 ${isWinner ? 'text-emerald-primary font-bold' : 'text-gray-400'}`}>
           {played ? score : '–'}
@@ -205,24 +206,25 @@ export default function BracketView({
     );
   };
 
-  const matchHeader = (realMatch, closedByDeadline) => {
-    if (!realMatch?.date && !realMatch?.time && !closedByDeadline) return null;
-    return (
-      <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-white/2.5 border-b border-white/10 text-[10px] text-gray-400">
-        <span className="flex items-center gap-2">
-          {realMatch?.date && <span className="flex items-center gap-1"><Calendar size={10} /> {realMatch.date}</span>}
-          {realMatch?.time && <span className="flex items-center gap-1"><Clock size={10} /> {realMatch.time}</span>}
-        </span>
-        {closedByDeadline && (
-          <span className="flex items-center gap-1 text-rose-400 font-bold uppercase tracking-wider">
-            <Lock size={9} /> Cerrado
-          </span>
-        )}
-      </div>
-    );
+  // Insignia de puntos de avance para el usuario (una vez jugado el partido).
+  const advanceBadge = (id, stageKey) => {
+    if (!isUser || !userBracket) return null;
+    const cfg = STAGE_ADVANCE[stageKey];
+    if (!cfg) return null; // SF / Final no otorgan puntos por avance
+    const m = liveMatchMap[id];
+    const winnerSide = m ? getWinnerSide(m.homeScore, m.awayScore, m.penaltyWinner) : null;
+    if (!winnerSide) {
+      return <span className="text-[10px] text-gray-500 font-semibold">Pendiente</span>;
+    }
+    const realWinner = winnerSide === 'home' ? m.homeTeam : m.awayTeam;
+    const predicted = (userBracket[cfg.set] || []).includes(realWinner);
+    return predicted
+      ? <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-primary bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">✓ Acertaste +{cfg.pts}</span>
+      : <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-md">✗ 0 pts</span>;
   };
 
-  const liveCard = (id) => {
+  // Tarjeta de lectura (usuario / invitado): equipos y resultado reales.
+  const viewerCard = (id, stageKey) => {
     const m = liveMatchMap[id];
     const played = m && m.homeScore !== null && m.homeScore !== undefined && m.awayScore !== null && m.awayScore !== undefined;
     const winner = m ? getWinnerSide(m.homeScore, m.awayScore, m.penaltyWinner) : null;
@@ -230,129 +232,101 @@ export default function BracketView({
     return (
       <div key={id} className="rounded-lg border border-white/10 bg-white/5 overflow-hidden text-xs w-full">
         {matchHeader(m)}
-        {teamRow({ key: 'h', team: m?.homeTeam, score: m?.homeScore, isWinner: winner === 'home', played, byPenalty: isTie })}
+        {teamRow('h', m?.homeTeam, m?.homeScore, winner === 'home', played, isTie)}
         <div className="h-px bg-white/10" />
-        {teamRow({ key: 'a', team: m?.awayTeam, score: m?.awayScore, isWinner: winner === 'away', played, byPenalty: isTie })}
+        {teamRow('a', m?.awayTeam, m?.awayScore, winner === 'away', played, isTie)}
+        {isUser && STAGE_ADVANCE[stageKey] && (
+          <div className="px-2.5 py-1.5 border-t border-white/10 flex justify-end">
+            {advanceBadge(id, stageKey)}
+          </div>
+        )}
       </div>
     );
   };
 
-  const mineCard = (id) => {
-    const display = userMatchMap[id] || {};
-    const realMatch = liveMatchMap[id];
-    const pred = getCurrentPred(id) || {};
-    const hv = pred.homeScore !== undefined && pred.homeScore !== null ? pred.homeScore : '';
-    const av = pred.awayScore !== undefined && pred.awayScore !== null ? pred.awayScore : '';
-    const filled = hv !== '' && av !== '';
-    const isTie = filled && parseInt(hv, 10) === parseInt(av, 10);
-    const winner = getWinnerSide(hv, av, pred.penaltyWinner);
-
-    const closedByDeadline = isPhaseDeadlinePassed(realMatch?.stage, phaseDeadlines);
-    const locked = isPredictionLocked(realMatch, phaseDeadlines);
-    const editable = canEditPreds && !locked;
-
-    const homePending = isPlaceholder(display.homeTeam);
-    const awayPending = isPlaceholder(display.awayTeam);
+  // Tarjeta editable de resultados (admin).
+  const adminCard = (id) => {
+    const m = liveMatchMap[id];
+    const edit = editingScores[id] || {};
+    const homeVal = edit.homeScore !== undefined ? edit.homeScore : (m?.homeScore ?? '');
+    const awayVal = edit.awayScore !== undefined ? edit.awayScore : (m?.awayScore ?? '');
+    const isEdited = edit.homeScore !== undefined || edit.awayScore !== undefined;
+    const hasResult = m && m.homeScore !== null && m.homeScore !== undefined && m.awayScore !== null && m.awayScore !== undefined;
+    const hn = homeVal !== '' ? parseInt(homeVal, 10) : null;
+    const an = awayVal !== '' ? parseInt(awayVal, 10) : null;
+    const isTie = hn !== null && an !== null && hn === an;
+    const pen = edit.penaltyWinner || m?.penaltyWinner;
+    const homePending = isPlaceholder(m?.homeTeam);
+    const awayPending = isPlaceholder(m?.awayTeam);
 
     return (
       <div key={id} className="rounded-lg border border-white/10 bg-white/5 overflow-hidden text-xs w-full">
-        {matchHeader(realMatch, closedByDeadline)}
-
-        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${winner === 'home' ? 'bg-emerald-500/15' : ''}`}>
-          <span className={`truncate ${homePending ? 'text-gray-500 italic' : winner === 'home' ? 'text-emerald-primary font-bold' : 'text-gray-200 font-semibold'}`}>
-            {homePending ? 'Por definir' : translateTeam(display.homeTeam)}
-            {winner === 'home' && isTie && <span className="ml-1 text-[9px] text-gold font-bold align-top">PEN</span>}
+        {matchHeader(m)}
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+          <span className={`truncate ${homePending ? 'text-gray-500 italic' : 'text-gray-200 font-semibold'}`}>
+            {homePending ? 'Por definir' : translateTeam(m?.homeTeam)}
           </span>
-          {editable
-            ? <input type="number" placeholder="-" value={hv} onChange={(e) => handleScoreChange(id, 'homeScore', e.target.value, realMatch)}
-                className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-            : <span className={`tabular-nums shrink-0 ${winner === 'home' ? 'text-emerald-primary font-bold' : 'text-gray-400'}`}>{hv === '' ? '–' : hv}</span>}
+          <input type="number" placeholder="-" value={homeVal} onChange={(e) => handleScoreChange(id, 'homeScore', e.target.value)}
+            className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
         </div>
-
         <div className="h-px bg-white/10" />
-
-        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${winner === 'away' ? 'bg-emerald-500/15' : ''}`}>
-          <span className={`truncate ${awayPending ? 'text-gray-500 italic' : winner === 'away' ? 'text-emerald-primary font-bold' : 'text-gray-200 font-semibold'}`}>
-            {awayPending ? 'Por definir' : translateTeam(display.awayTeam)}
-            {winner === 'away' && isTie && <span className="ml-1 text-[9px] text-gold font-bold align-top">PEN</span>}
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+          <span className={`truncate ${awayPending ? 'text-gray-500 italic' : 'text-gray-200 font-semibold'}`}>
+            {awayPending ? 'Por definir' : translateTeam(m?.awayTeam)}
           </span>
-          {editable
-            ? <input type="number" placeholder="-" value={av} onChange={(e) => handleScoreChange(id, 'awayScore', e.target.value, realMatch)}
-                className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-            : <span className={`tabular-nums shrink-0 ${winner === 'away' ? 'text-emerald-primary font-bold' : 'text-gray-400'}`}>{av === '' ? '–' : av}</span>}
+          <input type="number" placeholder="-" value={awayVal} onChange={(e) => handleScoreChange(id, 'awayScore', e.target.value)}
+            className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
         </div>
 
-        {/* Empate: ¿quién avanza a la siguiente fase? */}
         {isTie && (
           <div className="px-2.5 py-2 border-t border-white/10 bg-white/2.5">
-            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">¿Quién avanza?</span>
-            {editable ? (
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handlePenaltyChange(id, 'home', realMatch)}
-                  className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pred.penaltyWinner === 'home' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}
-                >
-                  {homePending ? 'Local' : translateTeam(display.homeTeam)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePenaltyChange(id, 'away', realMatch)}
-                  className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pred.penaltyWinner === 'away' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}
-                >
-                  {awayPending ? 'Visitante' : translateTeam(display.awayTeam)}
-                </button>
-              </div>
-            ) : (
-              <span className="text-[10px] text-emerald-primary font-bold">
-                {pred.penaltyWinner
-                  ? `Avanza: ${translateTeam(pred.penaltyWinner === 'away' ? display.awayTeam : display.homeTeam)}`
-                  : 'Sin definir'}
-              </span>
-            )}
+            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Avanza por penales:</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button type="button" onClick={() => setPenalty(id, homeVal, awayVal, 'home')}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pen === 'home' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
+                {homePending ? 'Local' : translateTeam(m?.homeTeam)}
+              </button>
+              <button type="button" onClick={() => setPenalty(id, homeVal, awayVal, 'away')}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pen === 'away' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
+                {awayPending ? 'Visitante' : translateTeam(m?.awayTeam)}
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Pie: guardar / estado */}
-        <div className="px-2.5 py-1.5 border-t border-white/10 flex justify-end">
-          {editable ? (
-            isMatchDirty(id) ? (
-              <button
-                onClick={() => handleSave(id)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 text-black hover:bg-amber-400 transition-all"
-              >
-                <Save size={12} /> Guardar
+        <div className="px-2.5 py-1.5 border-t border-white/10 flex justify-end gap-2">
+          {hasResult && !isEdited ? (
+            <>
+              <span className="flex items-center gap-1 text-[10px] text-emerald-primary font-bold"><CheckCircle2 size={12} /> Oficial</span>
+              <button onClick={() => handleClearResult(id)} className="p-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-md" title="Borrar resultado">
+                <Trash2 size={12} />
               </button>
-            ) : predStatus[id] === 'saving' ? (
-              <span className="flex items-center gap-1 text-[10px] text-gray-300"><Loader2 size={12} className="animate-spin" /> Guardando…</span>
-            ) : predStatus[id] === 'error' ? (
-              <button onClick={() => handleSave(id)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400">
-                <AlertCircle size={12} /> Reintentar
-              </button>
-            ) : filled ? (
-              <span className="flex items-center gap-1 text-[10px] text-emerald-primary font-bold"><CheckCircle2 size={12} /> Guardado</span>
-            ) : (
-              <span className="text-[10px] text-gray-500">Sin pronóstico</span>
-            )
+            </>
           ) : (
-            <span className="flex items-center gap-1 text-[10px] text-gray-500">
-              <Lock size={11} /> {realMatch && hasMatchStarted(realMatch) ? 'Cerrado (inició)' : closedByDeadline ? 'Cerrado (fecha límite)' : 'Cerrado'}
-            </span>
+            <button onClick={() => handleSaveResult(id)} disabled={homeVal === '' || awayVal === ''}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-primary text-white hover:bg-emerald-600 disabled:bg-white/10 disabled:text-gray-500 transition-all">
+              <Save size={12} /> Guardar
+            </button>
           )}
         </div>
       </div>
     );
   };
 
-  const renderCard = (id) => (mode === 'mine' ? mineCard(id) : liveCard(id));
+  const renderCard = (id, stageKey) => (isAdmin ? adminCard(id) : viewerCard(id, stageKey));
 
-  // Campeón / subcampeón a mostrar en la pestaña Final.
-  const champion = mode === 'mine' ? targetUser?.predictions?.bracket?.champion : actualBracket?.champion;
-  const runnerUp = mode === 'mine' ? targetUser?.predictions?.bracket?.runnerUp : actualBracket?.runnerUp;
-  const championReady = champion && !isPlaceholder(champion);
-  const runnerUpReady = runnerUp && !isPlaceholder(runnerUp);
+  /* ---------- Campeón / subcampeón ---------- */
+  const realChampion = actualBracket?.champion && !isPlaceholder(actualBracket.champion) ? actualBracket.champion : null;
+  const realRunnerUp = actualBracket?.runnerUp && !isPlaceholder(actualBracket.runnerUp) ? actualBracket.runnerUp : null;
 
-  const stageClosed = mode === 'mine' && isPhaseDeadlinePassed(stage.key, phaseDeadlines);
+  const championStatus = (field, picked, real, pts) => {
+    if (!isUser) return null;
+    if (!picked) return <span className="text-[10px] text-gray-500">Sin elegir</span>;
+    if (!real) return <span className="text-[10px] text-gray-400">Elegido</span>;
+    return picked === real
+      ? <span className="text-[10px] font-bold text-gold">🏆 Acertaste +{pts}</span>
+      : <span className="text-[10px] font-bold text-rose-400">✗ 0 pts</span>;
+  };
 
   return (
     <div className="glass-panel p-6 rounded-3xl space-y-6" style={{ contentVisibility: 'auto' }}>
@@ -360,27 +334,23 @@ export default function BracketView({
         <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
           <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
         </h2>
-        <p className="text-xs text-gray-400">
-          {mode === 'mine' ? 'Ingresa tus pronósticos por fase' : 'Resultados al momento • selecciona la fase'}
-        </p>
+        <p className="text-xs text-gray-400">Resultados al momento • selecciona la fase</p>
       </div>
 
-      {/* Conmutador Mis Pronósticos / Al Momento (solo participantes) */}
-      {canEditPreds && (
-        <div className="flex justify-center">
-          <div className="inline-flex bg-white/5 border border-white/10 p-1 rounded-2xl">
-            <button
-              onClick={() => setViewMode('mine')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'mine' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-            >
-              Mis Pronósticos
-            </button>
-            <button
-              onClick={() => setViewMode('live')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'live' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-            >
-              Al Momento
-            </button>
+      {/* Resumen de puntos del usuario */}
+      {isUser && targetUser?.scoreDetails && (
+        <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
+          <div className="p-3 bg-white/5 border border-emerald-500/20 rounded-xl text-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Total</span>
+            <span className="text-xl font-black text-emerald-primary">{targetUser.scoreDetails.total}</span>
+          </div>
+          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Partidos</span>
+            <span className="text-xl font-black text-sky-400">{targetUser.scoreDetails.matchPoints}</span>
+          </div>
+          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Llaves</span>
+            <span className="text-xl font-black text-gold">{targetUser.scoreDetails.bracketPoints}</span>
           </div>
         </div>
       )}
@@ -388,10 +358,8 @@ export default function BracketView({
       {/* Panel de administrador: fechas deshabilitadoras por fase */}
       {isAdmin && (
         <div className="border border-emerald-500/20 rounded-2xl overflow-hidden">
-          <button
-            onClick={() => setAdminPanelOpen(o => !o)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors"
-          >
+          <button onClick={() => setAdminPanelOpen(o => !o)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
             <span className="flex items-center gap-2 text-xs font-bold text-emerald-primary uppercase tracking-wider">
               <Settings size={14} /> Fechas límite de pronóstico por fase
             </span>
@@ -407,12 +375,9 @@ export default function BracketView({
                 {DEADLINE_FIELDS.map(f => (
                   <div key={f.key}>
                     <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">{f.label}</label>
-                    <input
-                      type="datetime-local"
-                      value={phaseDeadlines[f.key] || ''}
+                    <input type="datetime-local" value={phaseDeadlines[f.key] || ''}
                       onChange={(e) => updatePhaseDeadline(f.key, e.target.value)}
-                      className="w-full p-2 bg-soccer-dark border border-white/10 focus:border-emerald-500 focus:outline-none rounded-lg text-xs text-white"
-                    />
+                      className="w-full p-2 bg-soccer-dark border border-white/10 focus:border-emerald-500 focus:outline-none rounded-lg text-xs text-white" />
                     {isPhaseDeadlinePassed(f.key, phaseDeadlines) && (
                       <span className="text-[9px] text-rose-400 font-bold uppercase tracking-wider mt-1 block">Cerrada</span>
                     )}
@@ -427,61 +392,92 @@ export default function BracketView({
       {/* Tabs de fases */}
       <div className="flex flex-wrap justify-center gap-1.5 bg-white/5 border border-white/10 p-1.5 rounded-2xl">
         {STAGES.map(s => (
-          <button
-            key={s.key}
-            onClick={() => setActiveStage(s.key)}
-            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeStage === s.key ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-          >
+          <button key={s.key} onClick={() => setActiveStage(s.key)}
+            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeStage === s.key ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
             {s.label}
           </button>
         ))}
       </div>
 
-      {/* Aviso de fase cerrada (modo Mis Pronósticos) */}
-      {stageClosed && (
-        <div className="flex items-center justify-center gap-2 text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl py-2 px-3">
-          <Lock size={13} /> Los pronósticos de esta fase están cerrados.
-        </div>
-      )}
-
       {stage.key === 'final' ? (
-        // FINAL: campeón / subcampeón + partido final centrado
         <div className="max-w-md mx-auto space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 bg-white/5 border border-gold/30 rounded-2xl text-center">
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Campeón</span>
-              <span className={`mt-1 block font-black ${championReady ? 'text-gold text-lg' : 'text-gray-500 italic text-sm'}`}>
-                {championReady ? `🏆 ${translateTeam(champion)}` : (mode === 'mine' ? 'Sin elegir' : 'Pendiente')}
+          {/* Selección directa de campeón / subcampeón */}
+          <div className="p-4 bg-white/5 border border-gold/30 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gold uppercase tracking-wider flex items-center gap-1.5">
+                <Award size={14} /> Campeón y Subcampeón
               </span>
+              {isUser && championLocked && (
+                <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                  <Lock size={10} /> Cerrado
+                </span>
+              )}
             </div>
-            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-center">
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Subcampeón</span>
-              <span className={`mt-1 block font-bold ${runnerUpReady ? 'text-gray-200 text-base' : 'text-gray-500 italic text-sm'}`}>
-                {runnerUpReady ? `🥈 ${translateTeam(runnerUp)}` : (mode === 'mine' ? 'Sin elegir' : 'Pendiente')}
-              </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">🏆 Campeón (+30)</label>
+                {isUser && !championLocked ? (
+                  <select value={selectedChampion} onChange={(e) => handleChampionPick('champion', e.target.value)}
+                    className="w-full p-2.5 bg-soccer-dark border border-white/10 focus:border-gold focus:outline-none rounded-xl text-sm font-bold text-white">
+                    <option value="">— Elegir equipo —</option>
+                    {TEAMS.map(t => <option key={t} value={t}>{translateTeam(t)}</option>)}
+                  </select>
+                ) : (
+                  <span className={`text-lg font-black block ${isUser ? (selectedChampion ? 'text-gold' : 'text-gray-500 italic') : (realChampion ? 'text-gold' : 'text-gray-500 italic')}`}>
+                    {isUser
+                      ? (selectedChampion ? `🏆 ${translateTeam(selectedChampion)}` : 'Sin elegir')
+                      : (realChampion ? `🏆 ${translateTeam(realChampion)}` : 'Pendiente')}
+                  </span>
+                )}
+                {championStatus('champion', selectedChampion, realChampion, 30)}
+              </div>
+
+              <div>
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">🥈 Subcampeón (+20)</label>
+                {isUser && !championLocked ? (
+                  <select value={selectedRunnerUp} onChange={(e) => handleChampionPick('runnerUp', e.target.value)}
+                    className="w-full p-2.5 bg-soccer-dark border border-white/10 focus:border-emerald-500 focus:outline-none rounded-xl text-sm font-bold text-white">
+                    <option value="">— Elegir equipo —</option>
+                    {TEAMS.map(t => <option key={t} value={t}>{translateTeam(t)}</option>)}
+                  </select>
+                ) : (
+                  <span className={`text-base font-bold block ${isUser ? (selectedRunnerUp ? 'text-gray-200' : 'text-gray-500 italic') : (realRunnerUp ? 'text-gray-200' : 'text-gray-500 italic')}`}>
+                    {isUser
+                      ? (selectedRunnerUp ? `🥈 ${translateTeam(selectedRunnerUp)}` : 'Sin elegir')
+                      : (realRunnerUp ? `🥈 ${translateTeam(realRunnerUp)}` : 'Pendiente')}
+                  </span>
+                )}
+                {championStatus('runnerUp', selectedRunnerUp, realRunnerUp, 20)}
+              </div>
             </div>
+
+            {isUser && selectedChampion && selectedRunnerUp && selectedChampion === selectedRunnerUp && (
+              <p className="text-[10px] text-rose-400 font-semibold">Campeón y subcampeón no pueden ser el mismo equipo.</p>
+            )}
+            {isUser && !championLocked && (
+              <div className="text-[10px] font-semibold h-3">
+                {championSaveStatus === 'saving' && <span className="text-gray-400">Guardando…</span>}
+                {championSaveStatus === 'saved' && <span className="text-emerald-primary">✓ Guardado</span>}
+                {championSaveStatus === 'error' && <span className="text-rose-400">Error al guardar</span>}
+              </div>
+            )}
           </div>
-          {mode === 'mine' && (
-            <p className="text-[10px] text-gray-500 text-center -mt-2">
-              Elige campeón y subcampeón en la pestaña “Mis Pronósticos” → Bracket Llaves.
-            </p>
-          )}
 
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-2">Partido Final</h3>
-            {renderCard('k2-1')}
+            {renderCard('k2-1', 'final')}
           </div>
         </div>
       ) : (
-        // Fases con lado izquierdo y lado derecho
         <div className="grid grid-cols-2 gap-3 sm:gap-8">
           <div className="space-y-2 sm:space-y-3">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Lado Izquierdo</h3>
-            {stage.left.map(id => renderCard(id))}
+            {stage.left.map(id => renderCard(id, stage.key))}
           </div>
           <div className="space-y-2 sm:space-y-3">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Lado Derecho</h3>
-            {stage.right.map(id => renderCard(id))}
+            {stage.right.map(id => renderCard(id, stage.key))}
           </div>
         </div>
       )}
