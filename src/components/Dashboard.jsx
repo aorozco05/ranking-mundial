@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw, ChevronDown, ListOrdered } from 'lucide-react';
 import DailyMatches from './DailyMatches';
 import GroupStandings from './GroupStandings';
 import BracketView from './BracketView';
@@ -10,6 +10,15 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
   const [raffleWinner, setRaffleWinner] = useState(null);
   const [raffleRotation, setRaffleRotation] = useState(0);
   const [customRaffleList, setCustomRaffleList] = useState(null);
+
+  // Secciones colapsables (consulta): arrancan cerradas para reducir el scroll.
+  const [rankingOpen, setRankingOpen] = useState(false);
+
+  // Salto rápido a la Tabla de posiciones por grupos desde cualquier punto.
+  const standingsRef = useRef(null);
+  const scrollToStandings = () => {
+    standingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // Ordenar y calcular posiciones del Leaderboard
   const leaderboard = useMemo(() => {
@@ -77,9 +86,9 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
   }, [leaderboard]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
 
-      {/* PARTIDOS DEL DÍA (Pronósticos para usuarios / Resultados para admin) */}
+      {/* PARTIDOS DEL DÍA — PRIORIDAD: primero y siempre visible */}
       <DailyMatches
         matches={matches}
         currentUser={currentUser}
@@ -87,21 +96,6 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         updateMatchResult={updateMatchResult}
         updateUserPredictions={updateUserPredictions}
         phaseDeadlines={phaseDeadlines}
-      />
-
-      {/* TABLA DE POSICIONES DE LOS EQUIPOS POR GRUPO */}
-      <GroupStandings matches={matches} />
-
-      {/* LLAVES DEL MUNDIAL (bracket por fases, lado izquierdo / derecho) */}
-      <BracketView
-        matches={matches}
-        actualBracket={actualBracket}
-        currentUser={currentUser}
-        users={users}
-        updateUserPredictions={updateUserPredictions}
-        updateMatchResult={updateMatchResult}
-        phaseDeadlines={phaseDeadlines}
-        updatePhaseDeadline={updatePhaseDeadline}
       />
 
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
@@ -185,6 +179,11 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         </div>
       )}
 
+      {/* TABLA DE POSICIONES DE LOS EQUIPOS POR GRUPO (objetivo del botón flotante) */}
+      <div ref={standingsRef} className="scroll-mt-24">
+        <GroupStandings matches={matches} />
+      </div>
+
       {/* METRICAS DE RESUMEN Y BOTE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="glass-panel p-6 rounded-2xl flex items-center justify-between">
@@ -233,8 +232,23 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         </div>
       </div>
 
+      {/* RANKING GENERAL + RULETA (colapsable, cerrado por defecto) */}
+      <button
+        onClick={() => setRankingOpen(o => !o)}
+        className="w-full glass-panel p-5 rounded-2xl flex items-center justify-between gap-3 hover:bg-white/2.5 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-xl font-bold font-title text-white">
+          <Trophy size={20} className="text-gold" /> Ranking General y Sorteo
+        </span>
+        <span className="flex items-center gap-2 text-xs text-gray-400">
+          {rankingOpen ? 'Ocultar' : 'Ver tabla completa'}
+          <ChevronDown size={18} className={`transition-transform ${rankingOpen ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+
+      {rankingOpen && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* TABLA DE POSICIONES COMPLETA */}
         <div className="glass-panel p-6 rounded-2xl lg:col-span-2 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -396,6 +410,31 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         </div>
 
       </div>
+      )}
+
+      {/* LLAVES DEL MUNDIAL (consulta, colapsable y cerrado por defecto, al final) */}
+      <BracketView
+        matches={matches}
+        actualBracket={actualBracket}
+        currentUser={currentUser}
+        users={users}
+        updateUserPredictions={updateUserPredictions}
+        updateMatchResult={updateMatchResult}
+        phaseDeadlines={phaseDeadlines}
+        updatePhaseDeadline={updatePhaseDeadline}
+        collapsible
+        defaultOpen={false}
+      />
+
+      {/* BOTÓN FLOTANTE: salto rápido a la Tabla de posiciones por grupos */}
+      <button
+        onClick={scrollToStandings}
+        title="Ir a la Tabla de posiciones"
+        className="fixed right-4 bottom-20 md:bottom-6 z-40 flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-white px-4 py-3 rounded-full shadow-[0_4px_16px_rgba(14,165,233,0.4)] transition-all hover:translate-y-[-2px]"
+      >
+        <ListOrdered size={18} />
+        <span className="hidden sm:inline text-xs font-bold">Tabla de grupos</span>
+      </button>
 
     </div>
   );

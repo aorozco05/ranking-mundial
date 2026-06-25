@@ -74,10 +74,14 @@ export default function BracketView({
   updateUserPredictions,
   updateMatchResult,
   phaseDeadlines = {},
-  updatePhaseDeadline
+  updatePhaseDeadline,
+  collapsible = false,
+  defaultOpen = true
 }) {
   const isUser = currentUser?.role === 'user';
   const isAdmin = currentUser?.role === 'admin';
+  const [sectionOpen, setSectionOpen] = useState(defaultOpen);
+  const showBody = !collapsible || sectionOpen;
   const targetUser = useMemo(
     () => (isUser ? users.find(u => u.id === currentUser.id) || null : null),
     [isUser, users, currentUser]
@@ -463,15 +467,35 @@ export default function BracketView({
 
   return (
     <div className="glass-panel p-6 rounded-3xl space-y-6" style={{ contentVisibility: 'auto' }}>
-      <div className="text-center space-y-1">
-        <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
-          <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
-        </h2>
-        <p className="text-xs text-gray-400">
-          {isUser ? 'Pronostica los partidos reales por fase' : 'Resultados al momento • selecciona la fase'}
-        </p>
-      </div>
+      {collapsible ? (
+        <button
+          onClick={() => setSectionOpen(o => !o)}
+          className="w-full flex items-center justify-center gap-2 text-center"
+        >
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
+              <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
+              <ChevronDown size={20} className={`text-gray-400 transition-transform ${sectionOpen ? 'rotate-180' : ''}`} />
+            </h2>
+            <p className="text-xs text-gray-400">
+              {sectionOpen
+                ? (isUser ? 'Pronostica los partidos reales por fase' : 'Resultados al momento • selecciona la fase')
+                : 'Toca para ver y editar el bracket'}
+            </p>
+          </div>
+        </button>
+      ) : (
+        <div className="text-center space-y-1">
+          <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
+            <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
+          </h2>
+          <p className="text-xs text-gray-400">
+            {isUser ? 'Pronostica los partidos reales por fase' : 'Resultados al momento • selecciona la fase'}
+          </p>
+        </div>
+      )}
 
+      {showBody && (<>
       {/* Resumen de puntos del usuario */}
       {isUser && targetUser?.scoreDetails && (
         <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
@@ -616,6 +640,7 @@ export default function BracketView({
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
