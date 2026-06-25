@@ -476,6 +476,7 @@ export default function App() {
             updateUserPredictions={updateUserPredictions}
             prizePool={prizePool}
             updatePrizePool={updatePrizePool}
+            actualBracket={actualBracket}
           />
         )}
         {activeTab === 'matches' && (

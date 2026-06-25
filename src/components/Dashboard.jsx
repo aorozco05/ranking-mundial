@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { Trophy, HelpCircle, AlertCircle, DollarSign, Shuffle, RefreshCw } from 'lucide-react';
 import DailyMatches from './DailyMatches';
 import GroupStandings from './GroupStandings';
+import BracketView from './BracketView';
 
-export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions, prizePool, updatePrizePool }) {
+export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions, prizePool, updatePrizePool, actualBracket }) {
   const totalPrizePool = prizePool ?? 100000; // Bote de apuestas (persistido desde App)
   const [isSpinning, setIsSpinning] = useState(false);
   const [raffleWinner, setRaffleWinner] = useState(null);
@@ -89,6 +90,9 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
 
       {/* TABLA DE POSICIONES DE LOS EQUIPOS POR GRUPO */}
       <GroupStandings matches={matches} />
+
+      {/* LLAVES DEL MUNDIAL (bracket por fases, lado izquierdo / derecho) */}
+      <BracketView matches={matches} actualBracket={actualBracket} />
 
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
       {leaderboard.length > 0 && (
