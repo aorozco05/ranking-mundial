@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Trophy, Lock, Save, CheckCircle2, Calendar, Clock, Settings, ChevronDown, Trash2, Award } from 'lucide-react';
+import { Trophy, Lock, Save, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, Settings, ChevronDown, Trash2, Award } from 'lucide-react';
 import { translateTeam } from '../utils/teamNames';
 import { TEAMS } from '../utils/mockData';
-import { resolveFullBracket } from '../utils/bracketResolver';
-import { isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
+import { isPredictionLocked, isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
+import { getAdvancePointsForStage, winnerSideOf } from '../utils/scoring';
 
 // Estructura del árbol de llaves dividido en lado izquierdo y lado derecho,
 // siguiendo el emparejamiento definido en bracketResolver (k32 → k16 → k8 → k4 → k2).
-// El orden de cada lista respeta el orden vertical del bracket (de arriba a abajo).
 const STAGES = [
   {
     key: 'r32',
@@ -50,17 +49,6 @@ const DEADLINE_FIELDS = [
   { key: 'final', label: 'Final' }
 ];
 
-// Puntos de avance ("llaves") que otorga el ganador de un partido al pasar a la
-// siguiente fase. SF y Final no otorgan puntos por avance: los finalistas se
-// puntúan mediante la selección directa de campeón (30) y subcampeón (20).
-const STAGE_ADVANCE = {
-  r32: { set: 'r16', pts: 9 },
-  r16: { set: 'qf', pts: 12 },
-  qf: { set: 'sf', pts: 18 }
-};
-
-// Un nombre es un marcador de posición (aún sin definir) si corresponde a una
-// etiqueta del bracket en lugar de a un equipo real.
 const isPlaceholder = (name) => {
   if (!name) return true;
   return (
@@ -76,17 +64,7 @@ const isPlaceholder = (name) => {
   );
 };
 
-function getWinnerSide(homeScore, awayScore, penaltyWinner) {
-  const played =
-    homeScore !== null && homeScore !== undefined &&
-    awayScore !== null && awayScore !== undefined && homeScore !== '' && awayScore !== '';
-  if (!played) return null;
-  const hs = parseInt(homeScore, 10);
-  const as = parseInt(awayScore, 10);
-  if (hs > as) return 'home';
-  if (as > hs) return 'away';
-  return penaltyWinner === 'away' ? 'away' : 'home';
-}
+const hasScore = (s) => s !== null && s !== undefined && s !== '';
 
 export default function BracketView({
   matches,
@@ -107,7 +85,9 @@ export default function BracketView({
 
   const [activeStage, setActiveStage] = useState('r32');
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [editingScores, setEditingScores] = useState({}); // edición de resultados (admin)
+  const [editingScores, setEditingScores] = useState({}); // resultados (admin)
+  const [predEdits, setPredEdits] = useState({});          // borradores de pronóstico (usuario)
+  const [predStatus, setPredStatus] = useState({});        // estado de guardado por partido
   const [championSaveStatus, setChampionSaveStatus] = useState(null);
 
   const stage = STAGES.find(s => s.key === activeStage) || STAGES[0];
@@ -119,12 +99,52 @@ export default function BracketView({
     return map;
   }, [matches]);
 
-  // Bracket que el usuario pronosticó (a partir de sus marcadores), usado solo
-  // para saber qué equipos esperaba que avanzaran y así mostrar sus puntos.
-  const userBracket = useMemo(() => {
-    if (!targetUser) return null;
-    return resolveFullBracket(matches, targetUser.predictions?.matches || {}).bracket;
-  }, [targetUser, matches]);
+  /* ---------- Pronósticos del usuario (sobre enfrentamientos reales) ---------- */
+  const getSavedPred = (id) => targetUser?.predictions?.matches?.[id] || {};
+  const getCurrentPred = (id) => (id in predEdits ? predEdits[id] : getSavedPred(id));
+  const isMatchDirty = (id) => {
+    if (!(id in predEdits)) return false;
+    const s = getSavedPred(id);
+    const e = predEdits[id];
+    return (e.homeScore ?? null) !== (s.homeScore ?? null)
+      || (e.awayScore ?? null) !== (s.awayScore ?? null)
+      || (e.penaltyWinner ?? null) !== (s.penaltyWinner ?? null);
+  };
+  const applyLocalEdit = (id, patch) => {
+    setPredEdits(prev => {
+      const base = id in prev ? prev[id] : getSavedPred(id);
+      return { ...prev, [id]: { ...base, ...patch } };
+    });
+    setPredStatus(prev => {
+      if (!prev[id]) return prev;
+      const n = { ...prev }; delete n[id]; return n;
+    });
+  };
+  const handlePredScore = (id, side, value, realMatch) => {
+    if (!isUser || isPredictionLocked(realMatch, phaseDeadlines)) return;
+    const clean = value === '' ? null : parseInt(value, 10);
+    applyLocalEdit(id, { [side]: isNaN(clean) ? null : clean });
+  };
+  const handlePredPenalty = (id, pen, realMatch) => {
+    if (!isUser || isPredictionLocked(realMatch, phaseDeadlines)) return;
+    applyLocalEdit(id, { penaltyWinner: pen });
+  };
+  const handleSavePred = async (id) => {
+    if (!isUser || !targetUser || !(id in predEdits) || predStatus[id] === 'saving') return;
+    const updated = {
+      ...targetUser.predictions,
+      matches: { ...targetUser.predictions?.matches, [id]: { ...getSavedPred(id), ...predEdits[id] } }
+    };
+    setPredStatus(prev => ({ ...prev, [id]: 'saving' }));
+    try {
+      await updateUserPredictions(targetUser.id, updated);
+      setPredEdits(prev => { const n = { ...prev }; delete n[id]; return n; });
+      setPredStatus(prev => ({ ...prev, [id]: 'saved' }));
+    } catch (err) {
+      console.error('Error al guardar el pronóstico:', err);
+      setPredStatus(prev => ({ ...prev, [id]: 'error' }));
+    }
+  };
 
   /* ---------- Selección de campeón / subcampeón (usuario) ---------- */
   const savedBracket = targetUser?.predictions?.bracket || {};
@@ -135,13 +155,13 @@ export default function BracketView({
 
   const handleChampionPick = async (field, value) => {
     if (!isUser || !targetUser || championLocked) return;
-    const updatedPredictions = {
+    const updated = {
       ...targetUser.predictions,
       bracket: { ...targetUser.predictions?.bracket, [field]: value || null }
     };
     setChampionSaveStatus('saving');
     try {
-      await updateUserPredictions(targetUser.id, updatedPredictions);
+      await updateUserPredictions(targetUser.id, updated);
       setChampionSaveStatus('saved');
     } catch (err) {
       console.error('Error al guardar campeón/subcampeón:', err);
@@ -178,7 +198,7 @@ export default function BracketView({
     }
   };
 
-  /* ---------- Helpers de render (funciones, no componentes) ---------- */
+  /* ---------- Render helpers (funciones, no componentes) ---------- */
   const matchHeader = (m) => {
     if (!m?.date && !m?.time) return null;
     return (
@@ -191,55 +211,148 @@ export default function BracketView({
     );
   };
 
-  const teamRow = (key, team, score, isWinner, played, byPenalty) => {
+  const nameCell = (team, highlight, byPenalty) => {
     const pending = isPlaceholder(team);
     return (
-      <div key={key} className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${isWinner ? 'bg-emerald-500/15' : ''}`}>
-        <span className={`truncate ${pending ? 'text-gray-500 italic' : isWinner ? 'text-emerald-primary font-bold' : 'text-gray-200 font-semibold'}`}>
-          {pending ? 'Por definir' : translateTeam(team)}
-          {isWinner && byPenalty && <span className="ml-1 text-[9px] text-gold font-bold align-top" title="Avanza por penales">PEN</span>}
-        </span>
-        <span className={`tabular-nums shrink-0 ${isWinner ? 'text-emerald-primary font-bold' : 'text-gray-400'}`}>
-          {played ? score : '–'}
-        </span>
-      </div>
+      <span className={`truncate ${pending ? 'text-gray-500 italic' : highlight ? 'text-emerald-primary font-bold' : 'text-gray-200 font-semibold'}`}>
+        {pending ? 'Por definir' : translateTeam(team)}
+        {highlight && byPenalty && <span className="ml-1 text-[9px] text-gold font-bold align-top" title="Avanza por penales">PEN</span>}
+      </span>
     );
   };
 
-  // Insignia de puntos de avance para el usuario (una vez jugado el partido).
-  const advanceBadge = (id, stageKey) => {
-    if (!isUser || !userBracket) return null;
-    const cfg = STAGE_ADVANCE[stageKey];
-    if (!cfg) return null; // SF / Final no otorgan puntos por avance
-    const m = liveMatchMap[id];
-    const winnerSide = m ? getWinnerSide(m.homeScore, m.awayScore, m.penaltyWinner) : null;
-    if (!winnerSide) {
-      return <span className="text-[10px] text-gray-500 font-semibold">Pendiente</span>;
-    }
-    const realWinner = winnerSide === 'home' ? m.homeTeam : m.awayTeam;
-    const predicted = (userBracket[cfg.set] || []).includes(realWinner);
-    return predicted
-      ? <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-primary bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">✓ Acertaste +{cfg.pts}</span>
-      : <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-md">✗ 0 pts</span>;
+  // Insignia de puntos por partido (estilo similar a "Partidos del Día").
+  const pointsBadge = (id, stageKey) => {
+    const real = liveMatchMap[id];
+    const played = real && hasScore(real.homeScore) && hasScore(real.awayScore);
+    if (!played) return <span className="text-[10px] text-gray-500 font-semibold uppercase">Pendiente</span>;
+    const saved = getSavedPred(id);
+    const hasPred = hasScore(saved.homeScore) && hasScore(saved.awayScore);
+    if (!hasPred) return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-md text-[10px] font-bold">Sin predicción (0)</span>;
+    const pts = getAdvancePointsForStage(stageKey);
+    if (!pts) return <span className="bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-md text-[10px] font-bold">Campeón/Subc.</span>;
+    const realSide = winnerSideOf(real.homeScore, real.awayScore, real.penaltyWinner);
+    const predSide = winnerSideOf(saved.homeScore, saved.awayScore, saved.penaltyWinner);
+    return realSide === predSide
+      ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2 py-0.5 rounded-md text-[10px] font-bold">Acertaste (+{pts})</span>
+      : <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-md text-[10px] font-bold">Fallado (0)</span>;
   };
 
-  // Tarjeta de lectura (usuario / invitado): equipos y resultado reales.
-  const viewerCard = (id, stageKey) => {
+  // Tarjeta de solo lectura (invitado): equipos y resultado reales.
+  const guestCard = (id) => {
     const m = liveMatchMap[id];
-    const played = m && m.homeScore !== null && m.homeScore !== undefined && m.awayScore !== null && m.awayScore !== undefined;
-    const winner = m ? getWinnerSide(m.homeScore, m.awayScore, m.penaltyWinner) : null;
+    const played = m && hasScore(m.homeScore) && hasScore(m.awayScore);
+    const winner = m ? winnerSideOf(m.homeScore, m.awayScore, m.penaltyWinner) : null;
     const isTie = played && parseInt(m.homeScore, 10) === parseInt(m.awayScore, 10);
     return (
       <div key={id} className="rounded-lg border border-white/10 bg-white/5 overflow-hidden text-xs w-full">
         {matchHeader(m)}
-        {teamRow('h', m?.homeTeam, m?.homeScore, winner === 'home', played, isTie)}
+        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${winner === 'home' ? 'bg-emerald-500/15' : ''}`}>
+          {nameCell(m?.homeTeam, winner === 'home', isTie)}
+          <span className="tabular-nums shrink-0 text-gray-400">{played ? m.homeScore : '–'}</span>
+        </div>
         <div className="h-px bg-white/10" />
-        {teamRow('a', m?.awayTeam, m?.awayScore, winner === 'away', played, isTie)}
-        {isUser && STAGE_ADVANCE[stageKey] && (
-          <div className="px-2.5 py-1.5 border-t border-white/10 flex justify-end">
-            {advanceBadge(id, stageKey)}
+        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${winner === 'away' ? 'bg-emerald-500/15' : ''}`}>
+          {nameCell(m?.awayTeam, winner === 'away', isTie)}
+          <span className="tabular-nums shrink-0 text-gray-400">{played ? m.awayScore : '–'}</span>
+        </div>
+      </div>
+    );
+  };
+
+  // Tarjeta de pronóstico del usuario sobre el enfrentamiento REAL.
+  const userCard = (id, stageKey) => {
+    const real = liveMatchMap[id];
+    const hasResult = real && hasScore(real.homeScore) && hasScore(real.awayScore);
+    const locked = isPredictionLocked(real, phaseDeadlines);
+    const editable = !locked;
+    const closedByDeadline = isPhaseDeadlinePassed(real?.stage, phaseDeadlines);
+
+    const pred = getCurrentPred(id) || {};
+    const hv = hasScore(pred.homeScore) ? pred.homeScore : '';
+    const av = hasScore(pred.awayScore) ? pred.awayScore : '';
+    const filled = hv !== '' && av !== '';
+    const isTie = filled && parseInt(hv, 10) === parseInt(av, 10);
+    const predWinner = winnerSideOf(hv, av, pred.penaltyWinner);
+    const homePending = isPlaceholder(real?.homeTeam);
+    const awayPending = isPlaceholder(real?.awayTeam);
+
+    const scoreCell = (side, val) => editable
+      ? <input type="number" placeholder="-" value={val} onChange={(e) => handlePredScore(id, side, e.target.value, real)}
+          className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+      : <span className={`tabular-nums shrink-0 ${(side === 'homeScore' ? predWinner === 'home' : predWinner === 'away') ? 'text-emerald-primary font-bold' : 'text-gray-400'}`}>{val === '' ? '–' : val}</span>;
+
+    return (
+      <div key={id} className="rounded-lg border border-white/10 bg-white/5 overflow-hidden text-xs w-full">
+        {matchHeader(real)}
+
+        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${predWinner === 'home' ? 'bg-emerald-500/15' : ''}`}>
+          {nameCell(real?.homeTeam, predWinner === 'home', isTie)}
+          {scoreCell('homeScore', hv)}
+        </div>
+        <div className="h-px bg-white/10" />
+        <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 ${predWinner === 'away' ? 'bg-emerald-500/15' : ''}`}>
+          {nameCell(real?.awayTeam, predWinner === 'away', isTie)}
+          {scoreCell('awayScore', av)}
+        </div>
+
+        {/* Empate pronosticado: ¿quién avanza? */}
+        {isTie && (
+          <div className="px-2.5 py-2 border-t border-white/10 bg-white/2.5">
+            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">¿Quién avanza?</span>
+            {editable ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                <button type="button" onClick={() => handlePredPenalty(id, 'home', real)}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pred.penaltyWinner === 'home' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
+                  {homePending ? 'Local' : translateTeam(real?.homeTeam)}
+                </button>
+                <button type="button" onClick={() => handlePredPenalty(id, 'away', real)}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold border truncate transition-colors ${pred.penaltyWinner === 'away' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`}>
+                  {awayPending ? 'Visitante' : translateTeam(real?.awayTeam)}
+                </button>
+              </div>
+            ) : (
+              <span className="text-[10px] text-emerald-primary font-bold">
+                {pred.penaltyWinner ? `Avanza: ${translateTeam(pred.penaltyWinner === 'away' ? real?.awayTeam : real?.homeTeam)}` : 'Sin definir'}
+              </span>
+            )}
           </div>
         )}
+
+        {/* Resultado oficial cuando ya se jugó */}
+        {hasResult && (
+          <div className="px-2.5 pt-1.5 text-[10px] text-gray-400 flex items-center gap-1">
+            <Trophy size={11} className="text-gold" /> Resultado oficial:
+            <span className="text-white font-bold">{real.homeScore}:{real.awayScore}</span>
+          </div>
+        )}
+
+        {/* Pie: guardar (editable) o puntos/estado (cerrado) */}
+        <div className="px-2.5 py-1.5 border-t border-white/10 mt-1.5 flex justify-end items-center">
+          {editable ? (
+            isMatchDirty(id) ? (
+              <button onClick={() => handleSavePred(id)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 text-black hover:bg-amber-400 transition-all">
+                <Save size={12} /> Guardar
+              </button>
+            ) : predStatus[id] === 'saving' ? (
+              <span className="flex items-center gap-1 text-[10px] text-gray-300"><Loader2 size={12} className="animate-spin" /> Guardando…</span>
+            ) : predStatus[id] === 'error' ? (
+              <button onClick={() => handleSavePred(id)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400">
+                <AlertCircle size={12} /> Reintentar
+              </button>
+            ) : filled ? (
+              <span className="flex items-center gap-1 text-[10px] text-emerald-primary font-bold"><CheckCircle2 size={12} /> Guardado</span>
+            ) : (
+              <span className="text-[10px] text-gray-500">Sin pronóstico</span>
+            )
+          ) : hasResult ? (
+            pointsBadge(id, stageKey)
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] text-gray-500">
+              <Lock size={11} /> {closedByDeadline ? 'Cerrado (fecha límite)' : 'Pronóstico cerrado'}
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -251,7 +364,7 @@ export default function BracketView({
     const homeVal = edit.homeScore !== undefined ? edit.homeScore : (m?.homeScore ?? '');
     const awayVal = edit.awayScore !== undefined ? edit.awayScore : (m?.awayScore ?? '');
     const isEdited = edit.homeScore !== undefined || edit.awayScore !== undefined;
-    const hasResult = m && m.homeScore !== null && m.homeScore !== undefined && m.awayScore !== null && m.awayScore !== undefined;
+    const hasResult = m && hasScore(m.homeScore) && hasScore(m.awayScore);
     const hn = homeVal !== '' ? parseInt(homeVal, 10) : null;
     const an = awayVal !== '' ? parseInt(awayVal, 10) : null;
     const isTie = hn !== null && an !== null && hn === an;
@@ -263,17 +376,13 @@ export default function BracketView({
       <div key={id} className="rounded-lg border border-white/10 bg-white/5 overflow-hidden text-xs w-full">
         {matchHeader(m)}
         <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
-          <span className={`truncate ${homePending ? 'text-gray-500 italic' : 'text-gray-200 font-semibold'}`}>
-            {homePending ? 'Por definir' : translateTeam(m?.homeTeam)}
-          </span>
+          {nameCell(m?.homeTeam, false, false)}
           <input type="number" placeholder="-" value={homeVal} onChange={(e) => handleScoreChange(id, 'homeScore', e.target.value)}
             className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
         </div>
         <div className="h-px bg-white/10" />
         <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
-          <span className={`truncate ${awayPending ? 'text-gray-500 italic' : 'text-gray-200 font-semibold'}`}>
-            {awayPending ? 'Por definir' : translateTeam(m?.awayTeam)}
-          </span>
+          {nameCell(m?.awayTeam, false, false)}
           <input type="number" placeholder="-" value={awayVal} onChange={(e) => handleScoreChange(id, 'awayScore', e.target.value)}
             className="w-9 bg-white/5 border border-white/15 rounded-md text-center font-bold text-white text-sm py-0.5 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
         </div>
@@ -313,19 +422,23 @@ export default function BracketView({
     );
   };
 
-  const renderCard = (id, stageKey) => (isAdmin ? adminCard(id) : viewerCard(id, stageKey));
+  const renderCard = (id, stageKey) => {
+    if (isAdmin) return adminCard(id);
+    if (isUser) return userCard(id, stageKey);
+    return guestCard(id);
+  };
 
   /* ---------- Campeón / subcampeón ---------- */
   const realChampion = actualBracket?.champion && !isPlaceholder(actualBracket.champion) ? actualBracket.champion : null;
   const realRunnerUp = actualBracket?.runnerUp && !isPlaceholder(actualBracket.runnerUp) ? actualBracket.runnerUp : null;
 
-  const championStatus = (field, picked, real, pts) => {
+  const championStatus = (picked, real, pts) => {
     if (!isUser) return null;
     if (!picked) return <span className="text-[10px] text-gray-500">Sin elegir</span>;
     if (!real) return <span className="text-[10px] text-gray-400">Elegido</span>;
     return picked === real
       ? <span className="text-[10px] font-bold text-gold">🏆 Acertaste +{pts}</span>
-      : <span className="text-[10px] font-bold text-rose-400">✗ 0 pts</span>;
+      : <span className="text-[10px] font-bold text-rose-400">Fallado (0)</span>;
   };
 
   return (
@@ -334,7 +447,9 @@ export default function BracketView({
         <h2 className="text-2xl font-bold font-title text-white flex items-center justify-center gap-2">
           <Trophy size={20} className="text-gold" /> Las Llaves del Mundial
         </h2>
-        <p className="text-xs text-gray-400">Resultados al momento • selecciona la fase</p>
+        <p className="text-xs text-gray-400">
+          {isUser ? 'Pronostica los partidos reales por fase' : 'Resultados al momento • selecciona la fase'}
+        </p>
       </div>
 
       {/* Resumen de puntos del usuario */}
@@ -430,7 +545,7 @@ export default function BracketView({
                       : (realChampion ? `🏆 ${translateTeam(realChampion)}` : 'Pendiente')}
                   </span>
                 )}
-                {championStatus('champion', selectedChampion, realChampion, 30)}
+                {championStatus(selectedChampion, realChampion, 30)}
               </div>
 
               <div>
@@ -448,7 +563,7 @@ export default function BracketView({
                       : (realRunnerUp ? `🥈 ${translateTeam(realRunnerUp)}` : 'Pendiente')}
                   </span>
                 )}
-                {championStatus('runnerUp', selectedRunnerUp, realRunnerUp, 20)}
+                {championStatus(selectedRunnerUp, realRunnerUp, 20)}
               </div>
             </div>
 
