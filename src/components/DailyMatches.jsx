@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CalendarClock, Clock, Lock, Save, CheckCircle2, ShieldAlert, Plus, Minus, Trophy, Target, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 import { calculateMatchPoints } from '../utils/scoring';
-import { hasMatchStarted } from '../utils/matchSchedule';
+import { hasMatchStarted, isPredictionLocked, isPhaseDeadlinePassed } from '../utils/matchSchedule';
 import { translateTeam } from '../utils/teamNames';
 
 // Obtener la fecha de hoy en formato YYYY-MM-DD según la zona horaria local
@@ -24,7 +24,7 @@ const getStageLabel = (match) => {
   }
 };
 
-export default function DailyMatches({ matches, currentUser, users, updateMatchResult, updateUserPredictions }) {
+export default function DailyMatches({ matches, currentUser, users, updateMatchResult, updateUserPredictions, phaseDeadlines = {} }) {
   const isAdmin = currentUser?.role === 'admin';
   const isGuest = currentUser?.role === 'guest';
 
@@ -144,8 +144,8 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     if (!targetUser) return;
 
     const match = matches.find(m => m.id === matchId);
-    const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized || hasMatchStarted(match)) return; // No editar si ya comenzó o finalizó
+    // No editar si ya comenzó, finalizó o pasó la fecha límite de la fase
+    if (isPredictionLocked(match, phaseDeadlines)) return;
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
     applyLocalEdit(matchId, { [side]: isNaN(cleanValue) ? null : cleanValue });
@@ -153,8 +153,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
 
   const adjustPredictionScore = (match, side, delta) => {
     if (!targetUser) return;
-    const isOfficialized = match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized || hasMatchStarted(match)) return;
+    if (isPredictionLocked(match, phaseDeadlines)) return;
 
     const currentPred = getCurrentPred(match.id) || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
@@ -167,8 +166,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
   const handlePredictionPenaltyWinnerChange = (matchId, penaltyWinner) => {
     if (!targetUser) return;
     const match = matches.find(m => m.id === matchId);
-    const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (isOfficialized || hasMatchStarted(match)) return;
+    if (isPredictionLocked(match, phaseDeadlines)) return;
 
     applyLocalEdit(matchId, { penaltyWinner });
   };
@@ -252,7 +250,7 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     const hasPred = pred && pred.homeScore !== null && pred.homeScore !== undefined && pred.awayScore !== null && pred.awayScore !== undefined;
 
     if (!hasResult) {
-      if (hasMatchStarted(match)) {
+      if (hasMatchStarted(match) || isPhaseDeadlinePassed(match.stage, phaseDeadlines)) {
         return hasPred
           ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Pronóstico cerrado</span>
           : <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2.5 py-0.5 rounded-lg text-[10px] font-bold">No pronosticaste</span>;
@@ -427,7 +425,8 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
             const isTie = isKnockout && homeScoreNum !== null && awayScoreNum !== null && homeScoreNum === awayScoreNum;
 
             const started = hasMatchStarted(match);
-            const canEditMatch = !isGuest && targetUser && !hasResult && !started;
+            const closedByDeadline = isPhaseDeadlinePassed(match.stage, phaseDeadlines);
+            const canEditMatch = !isGuest && targetUser && !isPredictionLocked(match, phaseDeadlines);
 
             return (
               <div key={match.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/7.5 transition-all">
@@ -469,9 +468,9 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
                         <Clock size={10} /> {match.time}
                       </span>
                     )}
-                    {!isGuest && !hasResult && started && (
+                    {!isGuest && !hasResult && (started || closedByDeadline) && (
                       <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                        <Lock size={10} /> Pronóstico cerrado
+                        <Lock size={10} /> {closedByDeadline && !started ? 'Cerrado (fecha límite)' : 'Pronóstico cerrado'}
                       </span>
                     )}
                   </div>
