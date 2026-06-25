@@ -231,10 +231,6 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
       return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-lg text-[10px] font-bold">Sin Predicción (0 pts)</span>;
     }
 
-    if (match.stage !== 'groups') {
-      return <span className="bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-lg text-[10px] font-bold">Solo Grupos (0 pts)</span>;
-    }
-
     // Compare prediction vs actual match result (not prediction vs itself)
     const result = calculateMatchPoints(pred, actualMatch);
     if (result.points === 5) {
