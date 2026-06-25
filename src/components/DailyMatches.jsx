@@ -263,9 +263,6 @@ export default function DailyMatches({ matches, currentUser, users, updateMatchR
     if (!hasPred) {
       return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Sin Predicción (0 pts)</span>;
     }
-    if (match.stage !== 'groups') {
-      return <span className="bg-white/5 border border-white/10 text-gray-400 px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Solo Grupos (0 pts)</span>;
-    }
     const result = calculateMatchPoints(pred, match);
     if (result.points === 5) return <span className="bg-amber-500/10 border border-gold text-gold px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Exacto (+5)</span>;
     if (result.points === 3) return <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2.5 py-0.5 rounded-lg text-[10px] font-bold">Diferencia (+3)</span>;

@@ -6,17 +6,16 @@
  * 2. Adivinar Ganador y diferencia de Goles = 3 puntos (no aplica en empates,
  *    ya que la diferencia de goles siempre es 0)
  * 3. Adivinar Equipo Ganador o empate = 2 puntos
- * 4. Llaves (a partir de la fase de 32; la primera fase / fase de grupos NO puntúa
- *    clasificados). Se calculan a partir de los pronósticos de marcadores de la
- *    eliminación directa:
- *    - Octavos (R16): 9 puntos por cada equipo que avance
- *    - Cuartos (R8): 12 puntos por cada equipo que avance
- *    - Semifinales (R4): 18 puntos por cada equipo que avance
- * 5. Campeón y Subcampeón: NO se calculan según avanza el bracket. El usuario
- *    selecciona directamente qué equipo será campeón y cuál subcampeón.
+ *    (Estos puntos por resultado aplican a TODOS los partidos, incluida la
+ *     eliminación directa.)
+ * 4. Llaves (puntos de avance, ADICIONALES a los del resultado): por cada
+ *    enfrentamiento real de eliminación directa, acertar el ganador que avanza:
+ *    - 2ª Fase → avanza a Octavos: 9 puntos
+ *    - Octavos → avanza a Cuartos: 12 puntos
+ *    - Cuartos → avanza a Semis: 18 puntos
+ * 5. Campeón y Subcampeón: selección directa del usuario.
  *    - Adivinar Campeón = 30 puntos
  *    - Adivinar Subcampeón = 20 puntos
- * * Nota: Los puntos por resultados de partidos solo aplican para la fase de grupos.
  */
 
 export function calculateMatchPoints(prediction, actual) {
@@ -194,22 +193,22 @@ export function calculateUserTotalScore(userPredictions, actualMatches, actualBr
   actualMatches.forEach(match => {
     const pred = matchPredictions[match.id];
     if (pred && match.homeScore !== null && match.awayScore !== null) {
-      // Los puntos de resultados de partidos solo aplican para la fase de grupos
-      if (match.stage === 'groups') {
-        const res = calculateMatchPoints(pred, match);
-        matchPoints += res.points;
-        
-        if (res.points === 5) {
-          matchStats.exact++;
-          exactHits++;
-        } else if (res.points === 3) {
-          matchStats.diff++;
-        } else if (res.points === 2) {
-          matchStats.simple++;
-          winnerHits++; // Considerado acierto de ganador
-        } else {
-          matchStats.failed++;
-        }
+      // Los puntos por resultado del partido (exacto/diferencia/ganador/empate)
+      // aplican a TODOS los partidos, incluida la eliminación directa. En las
+      // llaves se suman además los puntos de avance (ver calculateBracketPoints).
+      const res = calculateMatchPoints(pred, match);
+      matchPoints += res.points;
+
+      if (res.points === 5) {
+        matchStats.exact++;
+        exactHits++;
+      } else if (res.points === 3) {
+        matchStats.diff++;
+      } else if (res.points === 2) {
+        matchStats.simple++;
+        winnerHits++; // Considerado acierto de ganador
+      } else {
+        matchStats.failed++;
       }
     }
   });

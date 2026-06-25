@@ -3,7 +3,7 @@ import { Trophy, Lock, Save, CheckCircle2, Loader2, AlertCircle, Calendar, Clock
 import { translateTeam } from '../utils/teamNames';
 import { TEAMS } from '../utils/mockData';
 import { isPredictionLocked, isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
-import { getAdvancePointsForStage, winnerSideOf } from '../utils/scoring';
+import { getAdvancePointsForStage, winnerSideOf, calculateMatchPoints } from '../utils/scoring';
 
 // Estructura del árbol de llaves dividido en lado izquierdo y lado derecho,
 // siguiendo el emparejamiento definido en bracketResolver (k32 → k16 → k8 → k4 → k2).
@@ -222,6 +222,8 @@ export default function BracketView({
   };
 
   // Insignia de puntos por partido (estilo similar a "Partidos del Día").
+  // Suma los puntos por resultado (exacto/diferencia/ganador) MÁS los puntos de
+  // avance de la llave si acertó el equipo que avanza.
   const pointsBadge = (id, stageKey) => {
     const real = liveMatchMap[id];
     const played = real && hasScore(real.homeScore) && hasScore(real.awayScore);
@@ -229,13 +231,31 @@ export default function BracketView({
     const saved = getSavedPred(id);
     const hasPred = hasScore(saved.homeScore) && hasScore(saved.awayScore);
     if (!hasPred) return <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-md text-[10px] font-bold">Sin predicción (0)</span>;
-    const pts = getAdvancePointsForStage(stageKey);
-    if (!pts) return <span className="bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-md text-[10px] font-bold">Campeón/Subc.</span>;
-    const realSide = winnerSideOf(real.homeScore, real.awayScore, real.penaltyWinner);
-    const predSide = winnerSideOf(saved.homeScore, saved.awayScore, saved.penaltyWinner);
-    return realSide === predSide
-      ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-primary px-2 py-0.5 rounded-md text-[10px] font-bold">Acertaste (+{pts})</span>
-      : <span className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-2 py-0.5 rounded-md text-[10px] font-bold">Fallado (0)</span>;
+
+    const matchRes = calculateMatchPoints(saved, real); // 5 / 3 / 2 / 0
+    const advPts = getAdvancePointsForStage(stageKey);   // 9 / 12 / 18 / 0
+    let adv = 0;
+    if (advPts) {
+      const realSide = winnerSideOf(real.homeScore, real.awayScore, real.penaltyWinner);
+      const predSide = winnerSideOf(saved.homeScore, saved.awayScore, saved.penaltyWinner);
+      if (realSide && predSide && realSide === predSide) adv = advPts;
+    }
+    const total = matchRes.points + adv;
+    const marcadorLabel = matchRes.points === 5 ? 'Exacto +5'
+      : matchRes.points === 3 ? 'Diferencia +3'
+      : matchRes.points === 2 ? 'Ganador +2'
+      : 'Marcador 0';
+
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${total > 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-primary' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
+          {total > 0 ? `Ganaste +${total}` : 'Fallado (0)'}
+        </span>
+        <span className="text-[9px] text-gray-400">
+          {marcadorLabel}{advPts ? ` · Llave ${adv ? `+${adv}` : '0'}` : ''}
+        </span>
+      </div>
+    );
   };
 
   // Tarjeta de solo lectura (invitado): equipos y resultado reales.
