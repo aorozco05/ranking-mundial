@@ -3,10 +3,10 @@ import { Award, Calendar, Clock, Lock, CheckCircle2, ShieldAlert, Plus, Minus, U
 import { TEAMS } from '../utils/mockData';
 import { calculateMatchPoints } from '../utils/scoring';
 import { resolveFullBracket } from '../utils/bracketResolver';
-import { hasMatchStarted } from '../utils/matchSchedule';
+import { hasMatchStarted, isPhaseDeadlinePassed } from '../utils/matchSchedule';
 import { translateTeam } from '../utils/teamNames';
 
-export default function UserPredictions({ users, matches, actualBracket, updateUserPredictions, activeUser }) {
+export default function UserPredictions({ users, matches, actualBracket, updateUserPredictions, activeUser, phaseDeadlines = {} }) {
   const [selectedUserId, setSelectedUserId] = useState(activeUser?.id && activeUser?.id !== 'admin' && activeUser?.id !== 'guest' ? activeUser.id : (users[0]?.id || ''));
   const [activeSubTab, setActiveSubTab] = useState('matches'); // 'matches' o 'bracket'
   const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
@@ -177,10 +177,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const handlePredictionScoreChange = (matchId, side, value) => {
     if (!targetUser || !canEdit) return;
 
-    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
+    // Bloquear edición si el partido ya comenzó, está oficializado o pasó la fecha
+    // límite de su fase (el admin no se restringe)
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match))) return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match) || isPhaseDeadlinePassed(match?.stage, phaseDeadlines))) return;
 
     const cleanValue = value === '' ? null : parseInt(value, 10);
 
@@ -190,10 +191,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const handlePredictionPenaltyWinnerChange = (matchId, penaltyWinner) => {
     if (!targetUser || !canEdit) return;
 
-    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
+    // Bloquear edición si el partido ya comenzó, está oficializado o pasó la fecha
+    // límite de su fase (el admin no se restringe)
     const match = matches.find(m => m.id === matchId);
     const isOfficialized = match && match.homeScore !== null && match.awayScore !== null;
-    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match))) return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(match) || isPhaseDeadlinePassed(match?.stage, phaseDeadlines))) return;
 
     applyLocalEdit(matchId, { penaltyWinner });
   };
@@ -202,10 +204,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const adjustPredictionScore = (match, side, delta) => {
     if (!canEdit) return;
 
-    // Bloquear edición si el partido ya comenzó o está oficializado (el admin no se restringe)
+    // Bloquear edición si el partido ya comenzó, está oficializado o pasó la fecha
+    // límite de su fase (el admin no se restringe)
     const actualMatch = matches.find(m => m.id === match.id);
     const isOfficialized = actualMatch && actualMatch.homeScore !== null && actualMatch.awayScore !== null;
-    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(actualMatch))) return;
+    if (activeUser?.role !== 'admin' && (isOfficialized || hasMatchStarted(actualMatch) || isPhaseDeadlinePassed(actualMatch?.stage, phaseDeadlines))) return;
 
     const currentPred = getCurrentPred(match.id) || {};
     const currentValue = currentPred[side] !== undefined && currentPred[side] !== null
@@ -448,7 +451,8 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     const actualMatchData = matches.find(m => m.id === match.id);
                     const isOfficialized = actualMatchData && actualMatchData.homeScore !== null && actualMatchData.awayScore !== null;
                     const started = hasMatchStarted(actualMatchData);
-                    const lockedForUser = (isOfficialized || started) && activeUser?.role !== 'admin';
+                    const closedByDeadline = isPhaseDeadlinePassed(match.stage, phaseDeadlines);
+                    const lockedForUser = (isOfficialized || started || closedByDeadline) && activeUser?.role !== 'admin';
                     const canEditMatch = canEdit && !lockedForUser;
 
                     return (
@@ -522,7 +526,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                             )}
                             {lockedForUser && (
                               <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                                <Lock size={10} /> {isOfficialized ? 'Finalizado' : 'Pronóstico cerrado'}
+                                <Lock size={10} /> {isOfficialized ? 'Finalizado' : (closedByDeadline && !started ? 'Cerrado (fecha límite)' : 'Pronóstico cerrado')}
                               </span>
                             )}
                           </div>

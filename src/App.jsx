@@ -33,6 +33,10 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [prizePool, setPrizePool] = useState(100000); // Bote de apuestas (persistido)
+  // Fechas deshabilitadoras por fase de eliminación directa (persistidas). Una vez
+  // pasada la fecha/hora, los usuarios no pueden seguir ingresando pronósticos de
+  // esa fase (sus pronósticos guardados se conservan).
+  const [phaseDeadlines, setPhaseDeadlines] = useState({ r32: '', r16: '', qf: '', sf: '', final: '' });
   
   // Navegación
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -45,6 +49,7 @@ export default function App() {
         let storedMatches = await db.get('matches') || [];
         let storedSession = await db.get('session');
         let storedPrizePool = await db.get('prizePool');
+        let storedPhaseDeadlines = await db.get('phaseDeadlines');
 
         // Inicializar partidos reales si la base de datos está vacía
         if (storedMatches.length === 0) {
@@ -82,6 +87,9 @@ export default function App() {
         if (storedPrizePool !== undefined && storedPrizePool !== null) {
           setPrizePool(storedPrizePool);
         }
+        if (storedPhaseDeadlines && typeof storedPhaseDeadlines === 'object') {
+          setPhaseDeadlines(prev => ({ ...prev, ...storedPhaseDeadlines }));
+        }
 
         if (storedSession) {
           setCurrentUser(storedSession);
@@ -102,12 +110,16 @@ export default function App() {
   useEffect(() => {
     const refreshData = async () => {
       try {
-        const [latestUsers, latestMatches] = await Promise.all([
+        const [latestUsers, latestMatches, latestDeadlines] = await Promise.all([
           db.get('users'),
-          db.get('matches')
+          db.get('matches'),
+          db.get('phaseDeadlines')
         ]);
         if (Array.isArray(latestUsers)) setUsers(latestUsers);
         if (Array.isArray(latestMatches) && latestMatches.length > 0) setMatches(latestMatches);
+        if (latestDeadlines && typeof latestDeadlines === 'object') {
+          setPhaseDeadlines(prev => ({ ...prev, ...latestDeadlines }));
+        }
       } catch (err) {
         console.error('Error al refrescar datos:', err);
       }
@@ -260,6 +272,14 @@ export default function App() {
     const safeValue = Number.isNaN(value) ? 0 : value;
     setPrizePool(safeValue);
     await db.set('prizePool', safeValue);
+  };
+
+  // 7.1. Actualizar la fecha deshabilitadora de una fase (solo administrador).
+  // Persistida en la base de datos. No borra pronósticos: solo cierra la edición.
+  const updatePhaseDeadline = async (phase, value) => {
+    const next = { ...phaseDeadlines, [phase]: value || '' };
+    setPhaseDeadlines(next);
+    await db.set('phaseDeadlines', next);
   };
 
   const handleResetDB = async () => {
@@ -477,6 +497,8 @@ export default function App() {
             prizePool={prizePool}
             updatePrizePool={updatePrizePool}
             actualBracket={actualBracket}
+            phaseDeadlines={phaseDeadlines}
+            updatePhaseDeadline={updatePhaseDeadline}
           />
         )}
         {activeTab === 'matches' && (
@@ -491,12 +513,13 @@ export default function App() {
           />
         )}
         {activeTab === 'predictions' && (
-          <UserPredictions 
-            users={enrichedUsers} 
-            matches={resolvedMatches} 
-            actualBracket={actualBracket} 
+          <UserPredictions
+            users={enrichedUsers}
+            matches={resolvedMatches}
+            actualBracket={actualBracket}
             updateUserPredictions={updateUserPredictions}
             activeUser={currentUser}
+            phaseDeadlines={phaseDeadlines}
           />
         )}
         {activeTab === 'users' && currentUser.role === 'admin' && (

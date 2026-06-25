@@ -4,7 +4,7 @@ import DailyMatches from './DailyMatches';
 import GroupStandings from './GroupStandings';
 import BracketView from './BracketView';
 
-export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions, prizePool, updatePrizePool, actualBracket }) {
+export default function Dashboard({ users, matches, currentUser, updateMatchResult, updateUserPredictions, prizePool, updatePrizePool, actualBracket, phaseDeadlines, updatePhaseDeadline }) {
   const totalPrizePool = prizePool ?? 100000; // Bote de apuestas (persistido desde App)
   const [isSpinning, setIsSpinning] = useState(false);
   const [raffleWinner, setRaffleWinner] = useState(null);
@@ -86,13 +86,22 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
         users={users}
         updateMatchResult={updateMatchResult}
         updateUserPredictions={updateUserPredictions}
+        phaseDeadlines={phaseDeadlines}
       />
 
       {/* TABLA DE POSICIONES DE LOS EQUIPOS POR GRUPO */}
       <GroupStandings matches={matches} />
 
       {/* LLAVES DEL MUNDIAL (bracket por fases, lado izquierdo / derecho) */}
-      <BracketView matches={matches} actualBracket={actualBracket} />
+      <BracketView
+        matches={matches}
+        actualBracket={actualBracket}
+        currentUser={currentUser}
+        users={users}
+        updateUserPredictions={updateUserPredictions}
+        phaseDeadlines={phaseDeadlines}
+        updatePhaseDeadline={updatePhaseDeadline}
+      />
 
       {/* SECCIÓN PODIO VISUAL (TOP RANKING) */}
       {leaderboard.length > 0 && (
