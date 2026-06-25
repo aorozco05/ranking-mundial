@@ -119,6 +119,41 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     }
   };
 
+  // --- SELECCIÓN DIRECTA DE CAMPEÓN Y SUBCAMPEÓN ---
+  // El campeón y subcampeón NO se calculan según avanza el bracket: el usuario los
+  // selecciona directamente de entre todos los equipos. Se persisten en
+  // predictions.bracket.{champion,runnerUp}.
+  const savedBracket = targetUser?.predictions?.bracket || {};
+  const selectedChampion = savedBracket.champion || '';
+  const selectedRunnerUp = savedBracket.runnerUp || '';
+
+  // El pronóstico de campeón/subcampeón se cierra (para usuarios) una vez que
+  // arranca la eliminación directa. El admin siempre puede editarlo.
+  const knockoutStarted = matches.some(m => m.stage !== 'groups' && hasMatchStarted(m));
+  const championLocked = knockoutStarted && activeUser?.role !== 'admin';
+
+  const [championSaveStatus, setChampionSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
+
+  const handleChampionPick = async (field, teamName) => {
+    if (!canEdit || !targetUser || championLocked) return;
+    const value = teamName === '' ? null : teamName;
+    const updatedPredictions = {
+      ...targetUser.predictions,
+      bracket: {
+        ...targetUser.predictions?.bracket,
+        [field]: value
+      }
+    };
+    setChampionSaveStatus('saving');
+    try {
+      await updateUserPredictions(targetUser.id, updatedPredictions);
+      setChampionSaveStatus('saved');
+    } catch (err) {
+      console.error('Error al guardar campeón/subcampeón:', err);
+      setChampionSaveStatus('error');
+    }
+  };
+
   // Predicciones efectivas (guardadas + borradores) para calcular el bracket en vivo
   const effectiveMatchesPred = useMemo(() => {
     return { ...(targetUser?.predictions?.matches || {}), ...localEdits };
@@ -220,7 +255,7 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
 
     const isHit = actualList.includes(teamName);
     if (isHit) {
-      const pts = stageKey === 'r32' ? 6 : (stageKey === 'r16' ? 9 : (stageKey === 'qf' ? 12 : (stageKey === 'sf' ? 18 : 24)));
+      const pts = stageKey === 'r16' ? 9 : (stageKey === 'qf' ? 12 : 18);
       return { label: `✅ Acertado (+${pts})`, class: 'text-emerald-primary font-bold' };
     } else {
       return { label: `❌ Fallado`, class: 'text-rose-500' };
@@ -544,45 +579,102 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                 </div>
               </div>
             ) : (
-              // PREDICCIONES BRACKET (VISTA DE LECTOR/CALCULADA)
+              // PREDICCIONES BRACKET
               <div className="space-y-6">
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold font-title text-white">🏆 Pronóstico de Bracket</h3>
                   <p className="text-xs text-gray-400">
-                    Calculado automáticamente en base a tus pronósticos de marcadores.
+                    Octavos, cuartos y semifinales se calculan automáticamente a partir de tus
+                    pronósticos de marcadores de eliminación directa. El campeón y el subcampeón
+                    los eliges directamente abajo.
                   </p>
                 </div>
 
-                <div className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-gray-400 block font-semibold">CAMPEÓN PREDICHO</span>
-                    <span className={`text-lg font-black mt-1 block ${userBracket.champion && !userBracket.champion.includes('Campeón') && !userBracket.champion.includes('Ganador') ? 'text-gold' : 'text-gray-500 italic'}`}>
-                      {userBracket.champion && !userBracket.champion.includes('Campeón') && !userBracket.champion.includes('Ganador')
-                        ? `🏆 ${translateTeam(userBracket.champion)}`
-                        : 'Por definir'}
+                {/* SELECCIÓN DIRECTA DE CAMPEÓN Y SUBCAMPEÓN */}
+                <div className="p-4 bg-white/5 border border-gold/30 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gold uppercase tracking-wider">
+                      Campeón y Subcampeón (selección directa)
                     </span>
+                    {championLocked && (
+                      <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                        <Lock size={10} /> Cerrado
+                      </span>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-gray-400 block font-semibold">SUBCAMPEÓN PREDICHO</span>
-                    <span className={`text-sm font-bold mt-1 block ${userBracket.runnerUp && !userBracket.runnerUp.includes('Subcampeón') && !userBracket.runnerUp.includes('Ganador') ? 'text-gray-200' : 'text-gray-500 italic'}`}>
-                      {userBracket.runnerUp && !userBracket.runnerUp.includes('Subcampeón') && !userBracket.runnerUp.includes('Ganador')
-                        ? `🥈 ${translateTeam(userBracket.runnerUp)}`
-                        : 'Por definir'}
-                    </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+                        🏆 Campeón (+30)
+                      </label>
+                      {canEdit && !championLocked ? (
+                        <select
+                          value={selectedChampion}
+                          onChange={(e) => handleChampionPick('champion', e.target.value)}
+                          className="w-full p-2.5 bg-soccer-dark border border-white/10 focus:border-gold focus:outline-none rounded-xl text-sm font-bold text-white"
+                        >
+                          <option value="">— Elegir equipo —</option>
+                          {TEAMS.map(t => (
+                            <option key={t} value={t}>{translateTeam(t)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`text-lg font-black block ${selectedChampion ? 'text-gold' : 'text-gray-500 italic'}`}>
+                          {selectedChampion ? `🏆 ${translateTeam(selectedChampion)}` : 'Sin elegir'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+                        🥈 Subcampeón (+15)
+                      </label>
+                      {canEdit && !championLocked ? (
+                        <select
+                          value={selectedRunnerUp}
+                          onChange={(e) => handleChampionPick('runnerUp', e.target.value)}
+                          className="w-full p-2.5 bg-soccer-dark border border-white/10 focus:border-emerald-500 focus:outline-none rounded-xl text-sm font-bold text-white"
+                        >
+                          <option value="">— Elegir equipo —</option>
+                          {TEAMS.map(t => (
+                            <option key={t} value={t}>{translateTeam(t)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`text-sm font-bold block ${selectedRunnerUp ? 'text-gray-200' : 'text-gray-500 italic'}`}>
+                          {selectedRunnerUp ? `🥈 ${translateTeam(selectedRunnerUp)}` : 'Sin elegir'}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {selectedChampion && selectedRunnerUp && selectedChampion === selectedRunnerUp && (
+                    <p className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
+                      <AlertCircle size={11} /> Campeón y subcampeón no pueden ser el mismo equipo.
+                    </p>
+                  )}
+
+                  {canEdit && !championLocked && (
+                    <div className="text-[10px] font-semibold h-3">
+                      {championSaveStatus === 'saving' && <span className="text-gray-400">Guardando…</span>}
+                      {championSaveStatus === 'saved' && <span className="text-emerald-primary">✓ Guardado</span>}
+                      {championSaveStatus === 'error' && <span className="text-rose-400">Error al guardar</span>}
+                    </div>
+                  )}
                 </div>
 
-                {['final', 'sf', 'qf', 'r16', 'r32'].map(stageKey => {
+                {['sf', 'qf', 'r16'].map(stageKey => {
                   const list = userBracket[stageKey] || [];
-                  const count = stageKey === 'final' ? 2 : (stageKey === 'sf' ? 4 : (stageKey === 'qf' ? 8 : (stageKey === 'r16' ? 16 : 32)));
-                  
+                  const count = stageKey === 'sf' ? 4 : (stageKey === 'qf' ? 8 : 16);
+
                   const isPlaceholder = (name) => {
                     if (!name) return true;
-                    return name.startsWith('1') || 
-                           name.startsWith('2') || 
-                           name.startsWith('3-') || 
-                           name.includes('Ganador') || 
-                           name.includes('Campeón') || 
+                    return name.startsWith('1') ||
+                           name.startsWith('2') ||
+                           name.startsWith('3-') ||
+                           name.includes('Ganador') ||
+                           name.includes('Campeón') ||
                            name.includes('Subcampeón') ||
                            name === 'Vacío';
                   };
@@ -590,11 +682,9 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                   const definedCount = list.filter(t => !isPlaceholder(t)).length;
                   const getStageTitle = (k) => {
                     switch(k) {
-                      case 'r32': return 'Dieciseisavos (R32)';
-                      case 'r16': return 'Octavos de Final';
-                      case 'qf': return 'Cuartos de Final';
-                      case 'sf': return 'Semifinales';
-                      case 'final': return 'Final';
+                      case 'r16': return 'Octavos de Final (+9 c/u)';
+                      case 'qf': return 'Cuartos de Final (+12 c/u)';
+                      case 'sf': return 'Semifinales (+18 c/u)';
                     }
                   };
 
@@ -678,22 +768,22 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                   <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400 font-semibold">Campeón:</span>
-                      <span className={getSinglePredictionStatus('champion', userBracket?.champion).class}>
-                        {getSinglePredictionStatus('champion', userBracket?.champion).label}
+                      <span className={getSinglePredictionStatus('champion', selectedChampion).class}>
+                        {getSinglePredictionStatus('champion', selectedChampion).label}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400 font-semibold">Subcampeón:</span>
-                      <span className={getSinglePredictionStatus('runnerUp', userBracket?.runnerUp).class}>
-                        {getSinglePredictionStatus('runnerUp', userBracket?.runnerUp).label}
+                      <span className={getSinglePredictionStatus('runnerUp', selectedRunnerUp).class}>
+                        {getSinglePredictionStatus('runnerUp', selectedRunnerUp).label}
                       </span>
                     </div>
                   </div>
 
-                  {/* Fases */}
-                  {['r32', 'r16', 'qf', 'sf', 'final'].map(stageKey => {
+                  {/* Fases (a partir de la fase de 32) */}
+                  {['r16', 'qf', 'sf'].map(stageKey => {
                     const list = userBracket?.[stageKey] || [];
-                    const label = stageKey === 'r32' ? 'R32' : (stageKey === 'r16' ? 'Octavos' : (stageKey === 'qf' ? 'Cuartos' : (stageKey === 'sf' ? 'Semifinales' : 'Final')));
+                    const label = stageKey === 'r16' ? 'Octavos' : (stageKey === 'qf' ? 'Cuartos' : 'Semifinales');
                     
                     const isPlaceholder = (name) => {
                       if (!name) return true;
