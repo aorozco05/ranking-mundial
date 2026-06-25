@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { 
-  LayoutDashboard, 
-  CalendarDays, 
-  UserSquare2, 
-  Settings, 
+import {
+  LayoutDashboard,
+  UserSquare2,
+  Settings,
   LogOut, 
   FileDown, 
   FileUp, 
@@ -15,8 +14,7 @@ import {
 } from 'lucide-react';
 
 import Dashboard from './components/Dashboard';
-import MatchesList from './components/MatchesList';
-import UserPredictions from './components/UserPredictions';
+import MiEstado from './components/MiEstado';
 import UsersManager from './components/UsersManager';
 import Login from './components/Login';
 
@@ -424,16 +422,10 @@ export default function App() {
               <LayoutDashboard size={14} /> Dashboard
             </button>
             <button
-              onClick={() => setActiveTab('matches')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'matches' ? 'bg-emerald-primary text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+              onClick={() => setActiveTab('mi-estado')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'mi-estado' ? 'bg-emerald-primary text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
             >
-              <CalendarDays size={14} /> Resultados
-            </button>
-            <button
-              onClick={() => setActiveTab('predictions')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'predictions' ? 'bg-emerald-primary text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-            >
-              <UserSquare2 size={14} /> Mis Pronósticos
+              <UserSquare2 size={14} /> Mi Estado
             </button>
             {currentUser.role === 'admin' && (
               <button
@@ -501,24 +493,16 @@ export default function App() {
             updatePhaseDeadline={updatePhaseDeadline}
           />
         )}
-        {activeTab === 'matches' && (
-          <MatchesList
+        {activeTab === 'mi-estado' && (
+          <MiEstado
             matches={resolvedMatches}
             users={enrichedUsers}
             updateMatchResult={updateMatchResult}
             updateMatchDate={updateMatchDate}
             updateMatchTime={updateMatchTime}
             actualBracket={actualBracket}
-            currentUserRole={currentUser.role}
-          />
-        )}
-        {activeTab === 'predictions' && (
-          <UserPredictions
-            users={enrichedUsers}
-            matches={resolvedMatches}
-            actualBracket={actualBracket}
+            currentUser={currentUser}
             updateUserPredictions={updateUserPredictions}
-            activeUser={currentUser}
             phaseDeadlines={phaseDeadlines}
           />
         )}
@@ -544,19 +528,11 @@ export default function App() {
         </button>
         
         <button
-          onClick={() => setActiveTab('matches')}
-          className={`flex flex-col items-center gap-1 bg-transparent border-none ${activeTab === 'matches' ? 'text-emerald-primary' : 'text-gray-400'}`}
-        >
-          <CalendarDays size={20} />
-          <span className="text-[9px] font-bold">Resultados</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('predictions')}
-          className={`flex flex-col items-center gap-1 bg-transparent border-none ${activeTab === 'predictions' ? 'text-emerald-primary' : 'text-gray-400'}`}
+          onClick={() => setActiveTab('mi-estado')}
+          className={`flex flex-col items-center gap-1 bg-transparent border-none ${activeTab === 'mi-estado' ? 'text-emerald-primary' : 'text-gray-400'}`}
         >
           <UserSquare2 size={20} />
-          <span className="text-[9px] font-bold">Pronósticos</span>
+          <span className="text-[9px] font-bold">Mi Estado</span>
         </button>
 
         {currentUser.role === 'admin' && (
