@@ -278,12 +278,10 @@ export default function Dashboard({ users, matches, currentUser, updateMatchResu
                       <td className="p-4 text-center text-xs">
                         <span className="block font-semibold text-white">
                           Aciertos: {
-                            user.scoreDetails.bracketDetails.r32Hits + 
-                            user.scoreDetails.bracketDetails.r16Hits + 
-                            user.scoreDetails.bracketDetails.qfHits + 
-                            user.scoreDetails.bracketDetails.sfHits + 
-                            user.scoreDetails.bracketDetails.finalHits + 
-                            (user.scoreDetails.bracketDetails.championHit ? 1 : 0) + 
+                            user.scoreDetails.bracketDetails.r16Hits +
+                            user.scoreDetails.bracketDetails.qfHits +
+                            user.scoreDetails.bracketDetails.sfHits +
+                            (user.scoreDetails.bracketDetails.championHit ? 1 : 0) +
                             (user.scoreDetails.bracketDetails.runnerUpHit ? 1 : 0)
                           }
                         </span>
