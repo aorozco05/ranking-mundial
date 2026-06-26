@@ -9,13 +9,13 @@ import {
   FileUp, 
   RefreshCw, 
   Trophy,
-  Loader2,
-  ShieldCheck
+  Loader2
 } from 'lucide-react';
 
 import Dashboard from './components/Dashboard';
 import MiEstado from './components/MiEstado';
 import UsersManager from './components/UsersManager';
+import UserRankBadge from './components/UserRankBadge';
 import Login from './components/Login';
 
 import db from './utils/db';
@@ -397,6 +397,13 @@ export default function App() {
     };
   });
 
+  // Posición del usuario logueado en el ranking (para el avatar persistente del
+  // header). Admin/invitado no participan: posición nula.
+  const leaderboard = [...enrichedUsers].sort((a, b) => b.scoreDetails.total - a.scoreDetails.total);
+  const myRankIndex = leaderboard.findIndex(u => u.id === currentUser.id);
+  const myPosition = myRankIndex >= 0 ? myRankIndex + 1 : null;
+  const myPoints = myRankIndex >= 0 ? leaderboard[myRankIndex].scoreDetails.total : null;
+
   return (
     <div className="flex flex-col min-h-screen bg-soccer-dark">
       
@@ -437,15 +444,14 @@ export default function App() {
             )}
           </nav>
 
-          {/* Detalle Perfil Logueado */}
+          {/* Detalle Perfil Logueado: avatar con posición en el ranking */}
           <div className="flex items-center gap-4 border-l border-white/10 pl-6">
-            <div className="text-right">
-              <span className="text-xs text-gray-200 font-bold block leading-none">{currentUser.name}</span>
-              <span className="text-[10px] text-gray-400 capitalize flex items-center justify-end gap-1 mt-1">
-                {currentUser.role === 'admin' && <ShieldCheck size={10} className="text-emerald-primary" />}
-                {currentUser.role}
-              </span>
-            </div>
+            <UserRankBadge
+              name={currentUser.name}
+              role={currentUser.role}
+              position={myPosition}
+              points={myPoints}
+            />
             <button
               onClick={handleLogout}
               className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl transition-all"
@@ -465,9 +471,13 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <span className="text-xs text-gray-200 font-bold block">{currentUser.name}</span>
-          </div>
+          <UserRankBadge
+            name={currentUser.name}
+            role={currentUser.role}
+            position={myPosition}
+            points={myPoints}
+            compact
+          />
           <button
             onClick={handleLogout}
             className="p-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs"
