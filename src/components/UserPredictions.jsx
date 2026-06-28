@@ -6,6 +6,22 @@ import { resolveFullBracket } from '../utils/bracketResolver';
 import { hasMatchStarted, isPhaseDeadlinePassed } from '../utils/matchSchedule';
 import { translateTeam } from '../utils/teamNames';
 
+// ¿El nombre es un placeholder (equipo aún no definido) en lugar de un equipo
+// real? Sirve para bloquear el pronóstico de un cruce de eliminación cuyas
+// llaves todavía no están resueltas (p. ej. "2A", "Ganador K32-1").
+const isUndefinedTeam = (name) => {
+  if (!name) return true;
+  return (
+    name.startsWith('1') ||
+    name.startsWith('2') ||
+    name.startsWith('3-') ||
+    name.includes('Ganador') ||
+    name.includes('Campeón') ||
+    name.includes('Subcampeón') ||
+    name === 'Vacío'
+  );
+};
+
 export default function UserPredictions({ users, matches, actualBracket, updateUserPredictions, activeUser, phaseDeadlines = {} }) {
   const [selectedUserId, setSelectedUserId] = useState(activeUser?.id && activeUser?.id !== 'admin' && activeUser?.id !== 'guest' ? activeUser.id : (users[0]?.id || ''));
   const [activeSubTab, setActiveSubTab] = useState('matches'); // 'matches' o 'bracket'
@@ -164,10 +180,15 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     return resolveFullBracket(matches, effectiveMatchesPred);
   }, [matches, effectiveMatchesPred]);
 
+  // Bracket proyectado del usuario: se usa SOLO para mostrar los clasificados
+  // pronosticados en la pestaña "Bracket Llaves" y el resumen lateral.
   const userBracket = userResolvedData.bracket;
-  const userMatches = userResolvedData.unifiedMatches;
 
-  const filteredMatches = userMatches.filter(match => {
+  // La fase de grupos y la eliminación directa se pronostican sobre los
+  // ENFRENTAMIENTOS REALES (prop `matches`), no sobre el bracket proyectado del
+  // usuario. Así el admin (o el usuario) carga el pronóstico del cruce real y
+  // queda consistente con el cálculo de puntos.
+  const filteredMatches = matches.filter(match => {
     if (activeStage === 'groups') {
       return match.stage === 'groups' && match.group === selectedGroup;
     } else {
@@ -449,8 +470,12 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                     const isOfficialized = actualMatchData && actualMatchData.homeScore !== null && actualMatchData.awayScore !== null;
                     const started = hasMatchStarted(actualMatchData);
                     const closedByDeadline = isPhaseDeadlinePassed(match.stage, phaseDeadlines);
+                    // En eliminación directa, el cruce real puede no estar definido aún
+                    // (faltan resultados de la fase previa). En ese caso nadie puede
+                    // pronosticar (ni el admin): no hay equipos contra los cuales jugar.
+                    const teamsUndefined = isKnockout && (isUndefinedTeam(match.homeTeam) || isUndefinedTeam(match.awayTeam));
                     const lockedForUser = (isOfficialized || started || closedByDeadline) && activeUser?.role !== 'admin';
-                    const canEditMatch = canEdit && !lockedForUser;
+                    const canEditMatch = canEdit && !lockedForUser && !teamsUndefined;
 
                     return (
                       <div 
@@ -524,6 +549,11 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
                             {lockedForUser && (
                               <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
                                 <Lock size={10} /> {isOfficialized ? 'Finalizado' : (closedByDeadline && !started ? 'Cerrado (fecha límite)' : 'Pronóstico cerrado')}
+                              </span>
+                            )}
+                            {teamsUndefined && !lockedForUser && (
+                              <span className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                <Lock size={10} /> Cruce por definir
                               </span>
                             )}
                           </div>
