@@ -157,7 +157,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
       <div className={isKnockout ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-3xl mx-auto'}>
 
         {/* LISTADO DE PARTIDOS */}
-        <div className="glass-panel p-6 rounded-2xl space-y-4">
+        <div className="glass-panel p-6 rounded-2xl space-y-4 min-w-0 overflow-hidden">
           <h2 className="text-xl font-bold font-title text-white flex items-center gap-2">
             ⚽ {activeStage === 'groups'
               ? `Partidos del Grupo ${selectedGroup}`
@@ -191,7 +191,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   key={match.id}
                   className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col gap-4 transition-all hover:bg-white/7.5"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap min-w-0">
                   {/* Fecha y Fase */}
                   <div className="flex md:flex-col justify-between items-center md:items-start gap-1">
                     {isAdmin ? (
@@ -233,7 +233,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   </div>
 
                   {/* Marcadores e Inputs */}
-                  <div className="flex flex-col flex-grow items-center justify-center">
+                  <div className="flex flex-col flex-grow items-center justify-center min-w-0">
                     <div className="flex items-center justify-center gap-3 select-none w-full">
                       {/* Local */}
                       <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</div>
