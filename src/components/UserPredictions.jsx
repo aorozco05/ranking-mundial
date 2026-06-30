@@ -143,11 +143,10 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
   const selectedChampion = savedBracket.champion || '';
   const selectedRunnerUp = savedBracket.runnerUp || '';
 
-  // El pronóstico de campeón/subcampeón se cierra (para usuarios) una vez que
-  // arranca la eliminación directa o pasa la fecha límite de la Final. El admin
+  // El pronóstico de campeón/subcampeón se cierra (para usuarios) cuando pasa su
+  // fecha límite dedicada ('champion'), independiente de las fases. El admin
   // siempre puede editarlo.
-  const knockoutStarted = matches.some(m => m.stage !== 'groups' && hasMatchStarted(m));
-  const championLocked = (knockoutStarted || isPhaseDeadlinePassed('final', phaseDeadlines)) && activeUser?.role !== 'admin';
+  const championLocked = isPhaseDeadlinePassed('champion', phaseDeadlines) && activeUser?.role !== 'admin';
 
   const [championSaveStatus, setChampionSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
 
