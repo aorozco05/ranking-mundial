@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Save, Calendar, Clock, ShieldAlert, CheckCircle2, ChevronLeft, ChevronRight, Plus, Minus, Users, ChevronDown, Trash2 } from 'lucide-react';
 import { TEAMS } from '../utils/mockData';
-import { calculateMatchPoints } from '../utils/scoring';
+import { calculateMatchPoints, winnerSideOf, getAdvancePointsForStage } from '../utils/scoring';
 import { translateTeam } from '../utils/teamNames';
 
 export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole, users = [] }) {
@@ -400,10 +400,23 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {matchPredictions.map(({ user, pred }) => {
                             const hasPred = pred && pred.homeScore !== null && pred.homeScore !== undefined && pred.awayScore !== null && pred.awayScore !== undefined;
+                            // Puntos ganados por este pronóstico para este partido. En la
+                            // eliminación directa se suman los puntos de avance (acertar el
+                            // equipo que avanza) a los puntos por resultado del marcador.
                             let pointsLabel = null;
-                            if (hasPred && hasScore && match.stage === 'groups') {
-                              const { points } = calculateMatchPoints(pred, match);
-                              pointsLabel = points;
+                            let isExact = false;
+                            if (hasPred && hasScore) {
+                              const res = calculateMatchPoints(pred, match);
+                              isExact = res.points === 5;
+                              if (match.stage === 'groups') {
+                                pointsLabel = res.points;
+                              } else {
+                                const realSide = winnerSideOf(match.homeScore, match.awayScore, match.penaltyWinner);
+                                const predSide = winnerSideOf(pred.homeScore, pred.awayScore, pred.penaltyWinner);
+                                const advance = realSide && predSide && realSide === predSide
+                                  ? getAdvancePointsForStage(match.stage) : 0;
+                                pointsLabel = res.points + advance;
+                              }
                             }
                             return (
                               <div key={user.id} className="flex items-center justify-between gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
@@ -416,10 +429,10 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                                   )}
                                   {pointsLabel !== null && (
                                     <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
-                                      pointsLabel === 5 ? 'bg-amber-500/10 border-gold text-gold'
-                                        : pointsLabel === 3 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-primary'
+                                      pointsLabel === 0 ? 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                                        : isExact ? 'bg-amber-500/10 border-gold text-gold'
                                         : pointsLabel === 2 ? 'bg-sky-500/10 border-sky-500/20 text-sky-400'
-                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-primary'
                                     }`}>
                                       +{pointsLabel}
                                     </span>
