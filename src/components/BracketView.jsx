@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Trophy, Lock, Save, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, Settings, ChevronDown, Trash2, Award } from 'lucide-react';
 import { translateTeam } from '../utils/teamNames';
 import { TEAMS } from '../utils/mockData';
-import { isPredictionLocked, isPhaseDeadlinePassed, hasMatchStarted } from '../utils/matchSchedule';
+import { isPredictionLocked, isPhaseDeadlinePassed } from '../utils/matchSchedule';
 import { getAdvancePointsForStage, winnerSideOf, calculateMatchPoints } from '../utils/scoring';
 
 // Estructura del árbol de llaves dividido en lado izquierdo y lado derecho,
@@ -46,7 +46,8 @@ const DEADLINE_FIELDS = [
   { key: 'r16', label: 'Octavos' },
   { key: 'qf', label: 'Cuartos' },
   { key: 'sf', label: 'Semis' },
-  { key: 'final', label: 'Final' }
+  { key: 'final', label: 'Final' },
+  { key: 'champion', label: 'Campeón / Subcampeón' }
 ];
 
 const isPlaceholder = (name) => {
@@ -154,8 +155,9 @@ export default function BracketView({
   const savedBracket = targetUser?.predictions?.bracket || {};
   const selectedChampion = savedBracket.champion || '';
   const selectedRunnerUp = savedBracket.runnerUp || '';
-  const knockoutStarted = matches.some(m => m.stage !== 'groups' && hasMatchStarted(m));
-  const championLocked = !isUser || knockoutStarted || isPhaseDeadlinePassed('final', phaseDeadlines);
+  // El campeón/subcampeón se bloquea con su propia fecha límite dedicada ('champion'),
+  // independiente de las fases. El admin siempre puede editar.
+  const championLocked = !isUser || isPhaseDeadlinePassed('champion', phaseDeadlines);
 
   const handleChampionPick = async (field, value) => {
     if (!isUser || !targetUser || championLocked) return;

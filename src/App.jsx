@@ -34,7 +34,9 @@ export default function App() {
   // Fechas deshabilitadoras por fase de eliminación directa (persistidas). Una vez
   // pasada la fecha/hora, los usuarios no pueden seguir ingresando pronósticos de
   // esa fase (sus pronósticos guardados se conservan).
-  const [phaseDeadlines, setPhaseDeadlines] = useState({ r32: '', r16: '', qf: '', sf: '', final: '' });
+  // 'champion' es una fecha límite dedicada SOLO al campeón/subcampeón, independiente
+  // de las fases. Pasada esa fecha, los usuarios no pueden cambiar su campeón/subcampeón.
+  const [phaseDeadlines, setPhaseDeadlines] = useState({ r32: '', r16: '', qf: '', sf: '', final: '', champion: '' });
   
   // Navegación
   const [activeTab, setActiveTab] = useState('dashboard');
