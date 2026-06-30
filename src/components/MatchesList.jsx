@@ -5,15 +5,16 @@ import { calculateMatchPoints } from '../utils/scoring';
 import { translateTeam } from '../utils/teamNames';
 
 export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole, users = [] }) {
-  const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
+  // Fase activa: 'groups' o una fase de eliminación ('r32','r16','qf','sf','final').
+  const [activeStage, setActiveStage] = useState('groups');
   const [selectedGroup, setSelectedGroup] = useState('A');
-  const [selectedKnockoutStage, setSelectedKnockoutStage] = useState('r32'); // fase de eliminación seleccionada
   const [editingScores, setEditingScores] = useState({});
   const [openPredictions, setOpenPredictions] = useState(null); // matchId con el panel de pronósticos abierto
 
   const groupsList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
-  // Fases de la eliminación directa, en orden, para el selector.
-  const knockoutStages = [
+  // Pestañas principales: la fase de grupos y cada fase de eliminación al mismo nivel.
+  const stageTabs = [
+    { key: 'groups', label: 'Fase de Grupos' },
     { key: 'r32', label: '2ª Fase' },
     { key: 'r16', label: 'Octavos' },
     { key: 'qf', label: 'Cuartos' },
@@ -21,14 +22,14 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
     { key: 'final', label: 'Final' }
   ];
   const isAdmin = currentUserRole === 'admin';
+  const isKnockout = activeStage !== 'groups';
 
   // Filtrar partidos
   const filteredMatches = matches.filter(match => {
     if (activeStage === 'groups') {
       return match.stage === 'groups' && match.group === selectedGroup;
-    } else {
-      return match.stage === selectedKnockoutStage;
     }
+    return match.stage === activeStage;
   });
 
   const handleScoreChange = (matchId, side, value) => {
@@ -92,19 +93,16 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
       
       {/* Selector de Fases */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10">
-        <div className="grid grid-cols-2 sm:flex gap-1">
-          <button
-            onClick={() => setActiveStage('groups')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all text-center ${activeStage === 'groups' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-          >
-            Fase de Grupos
-          </button>
-          <button
-            onClick={() => setActiveStage('knockout')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all text-center ${activeStage === 'knockout' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-          >
-            Eliminación Directa
-          </button>
+        <div className="grid grid-cols-3 sm:flex gap-1">
+          {stageTabs.map(s => (
+            <button
+              key={s.key}
+              onClick={() => setActiveStage(s.key)}
+              className={`px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all text-center ${activeStage === s.key ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {/* Notificación de Modo Admin */}
@@ -155,32 +153,15 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
         </div>
       )}
 
-      {/* Selector de Fases de Eliminación Directa */}
-      {activeStage === 'knockout' && (
-        <div className="glass-panel p-3 rounded-2xl flex items-center gap-2">
-          <div className="grid grid-cols-5 sm:flex gap-1 w-full">
-            {knockoutStages.map(s => (
-              <button
-                key={s.key}
-                onClick={() => setSelectedKnockoutStage(s.key)}
-                className={`px-2 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all text-center flex-1 ${selectedKnockoutStage === s.key ? 'bg-white/15 text-white border border-white/20' : 'text-gray-400 hover:text-white border border-transparent'}`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Grid Principal */}
-      <div className={activeStage === 'knockout' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-3xl mx-auto'}>
-        
+      <div className={isKnockout ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-3xl mx-auto'}>
+
         {/* LISTADO DE PARTIDOS */}
         <div className="glass-panel p-6 rounded-2xl space-y-4">
           <h2 className="text-xl font-bold font-title text-white flex items-center gap-2">
             ⚽ {activeStage === 'groups'
               ? `Partidos del Grupo ${selectedGroup}`
-              : getStageLabel(selectedKnockoutStage)}
+              : getStageLabel(activeStage)}
           </h2>
 
           <div className="space-y-3">
@@ -458,7 +439,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
         </div>
 
         {/* BRACKET REAL (MANDATORIO PARA CALCULAR PUNTOS DE LLAVES) */}
-        {activeStage === 'knockout' && (
+        {isKnockout && (
           <div className="glass-panel p-6 rounded-2xl space-y-6">
             <div className="space-y-1">
               <h2 className="text-xl font-bold font-title text-white">🏆 Bracket Real del Mundial</h2>
