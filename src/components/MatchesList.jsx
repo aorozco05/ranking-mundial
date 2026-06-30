@@ -5,21 +5,31 @@ import { calculateMatchPoints } from '../utils/scoring';
 import { translateTeam } from '../utils/teamNames';
 
 export default function MatchesList({ matches, updateMatchResult, updateMatchDate, updateMatchTime, actualBracket, currentUserRole, users = [] }) {
-  const [activeStage, setActiveStage] = useState('groups'); // 'groups' o 'knockout'
+  // Fase activa: 'groups' o una fase de eliminación ('r32','r16','qf','sf','final').
+  const [activeStage, setActiveStage] = useState('groups');
   const [selectedGroup, setSelectedGroup] = useState('A');
   const [editingScores, setEditingScores] = useState({});
   const [openPredictions, setOpenPredictions] = useState(null); // matchId con el panel de pronósticos abierto
 
   const groupsList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+  // Pestañas principales: la fase de grupos y cada fase de eliminación al mismo nivel.
+  const stageTabs = [
+    { key: 'groups', label: 'Fase de Grupos' },
+    { key: 'r32', label: '2ª Fase' },
+    { key: 'r16', label: 'Octavos' },
+    { key: 'qf', label: 'Cuartos' },
+    { key: 'sf', label: 'Semis' },
+    { key: 'final', label: 'Final' }
+  ];
   const isAdmin = currentUserRole === 'admin';
+  const isKnockout = activeStage !== 'groups';
 
   // Filtrar partidos
   const filteredMatches = matches.filter(match => {
     if (activeStage === 'groups') {
       return match.stage === 'groups' && match.group === selectedGroup;
-    } else {
-      return match.stage !== 'groups';
     }
+    return match.stage === activeStage;
   });
 
   const handleScoreChange = (matchId, side, value) => {
@@ -83,19 +93,16 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
       
       {/* Selector de Fases */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10">
-        <div className="grid grid-cols-2 sm:flex gap-1">
-          <button
-            onClick={() => setActiveStage('groups')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all text-center ${activeStage === 'groups' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-          >
-            Fase de Grupos
-          </button>
-          <button
-            onClick={() => setActiveStage('knockout')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all text-center ${activeStage === 'knockout' ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-          >
-            Eliminación Directa
-          </button>
+        <div className="grid grid-cols-3 sm:flex gap-1">
+          {stageTabs.map(s => (
+            <button
+              key={s.key}
+              onClick={() => setActiveStage(s.key)}
+              className={`px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all text-center ${activeStage === s.key ? 'bg-emerald-primary text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {/* Notificación de Modo Admin */}
@@ -133,7 +140,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
             ))}
           </div>
 
-          <button 
+          <button
             onClick={() => {
               const idx = groupsList.indexOf(selectedGroup);
               if (idx < groupsList.length - 1) setSelectedGroup(groupsList[idx + 1]);
@@ -147,12 +154,14 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
       )}
 
       {/* Grid Principal */}
-      <div className={activeStage === 'knockout' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-3xl mx-auto'}>
-        
+      <div className={isKnockout ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-3xl mx-auto'}>
+
         {/* LISTADO DE PARTIDOS */}
-        <div className="glass-panel p-6 rounded-2xl space-y-4">
+        <div className="glass-panel p-6 rounded-2xl space-y-4 min-w-0 overflow-hidden">
           <h2 className="text-xl font-bold font-title text-white flex items-center gap-2">
-            ⚽ {activeStage === 'groups' ? `Partidos del Grupo ${selectedGroup}` : 'Fase Final Oficial'}
+            ⚽ {activeStage === 'groups'
+              ? `Partidos del Grupo ${selectedGroup}`
+              : getStageLabel(activeStage)}
           </h2>
 
           <div className="space-y-3">
@@ -182,7 +191,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   key={match.id}
                   className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col gap-4 transition-all hover:bg-white/7.5"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap min-w-0">
                   {/* Fecha y Fase */}
                   <div className="flex md:flex-col justify-between items-center md:items-start gap-1">
                     {isAdmin ? (
@@ -224,7 +233,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                   </div>
 
                   {/* Marcadores e Inputs */}
-                  <div className="flex flex-col flex-grow items-center justify-center">
+                  <div className="flex flex-col flex-grow items-center justify-center min-w-0">
                     <div className="flex items-center justify-center gap-3 select-none w-full">
                       {/* Local */}
                       <div className="w-24 sm:w-28 text-right font-bold text-gray-200 text-sm break-words leading-tight">{translateTeam(match.homeTeam)}</div>
@@ -430,7 +439,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
         </div>
 
         {/* BRACKET REAL (MANDATORIO PARA CALCULAR PUNTOS DE LLAVES) */}
-        {activeStage === 'knockout' && (
+        {isKnockout && (
           <div className="glass-panel p-6 rounded-2xl space-y-6">
             <div className="space-y-1">
               <h2 className="text-xl font-bold font-title text-white">🏆 Bracket Real del Mundial</h2>
