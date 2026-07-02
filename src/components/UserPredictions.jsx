@@ -286,7 +286,9 @@ export default function UserPredictions({ users, matches, actualBracket, updateU
     if (!teamName) return { label: 'Sin elegir', class: 'text-gray-500' };
 
     const actualTeam = actualBracket?.[field];
-    if (!actualTeam) {
+    // No evaluar (acertado/fallado) hasta que el campeón/subcampeón real esté
+    // definido, es decir, hasta que se juegue la final. Antes es un placeholder.
+    if (!actualTeam || isUndefinedTeam(actualTeam)) {
       return { label: `Elegido: ${translateTeam(teamName)}`, class: 'text-gray-400 font-medium' };
     }
 
