@@ -59,6 +59,7 @@ const isPlaceholder = (name) => {
     name.startsWith('W') ||
     name.startsWith('RU') ||
     name.includes('Ganador') ||
+    name.includes('Perdedor') ||
     name.includes('Campeón') ||
     name.includes('Subcampeón') ||
     name === 'Vacío'
@@ -628,6 +629,11 @@ export default function BracketView({
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-2">Partido Final</h3>
             {renderCard('k2-1', 'final')}
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-2">🥉 Tercer Puesto</h3>
+            {renderCard('k3rd-1', 'third')}
           </div>
         </div>
       ) : (

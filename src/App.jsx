@@ -74,6 +74,19 @@ export default function App() {
           await db.set('matches', storedMatches);
         }
 
+        // Asegurar que existan todos los partidos base (migración): agrega los
+        // partidos nuevos —como el del tercer puesto— a bases de datos que se
+        // inicializaron antes de que existieran, sin tocar los resultados ya guardados.
+        const allInitialMatches = [...INITIAL_MATCHES, ...INITIAL_KNOCKOUT_MATCHES];
+        const existingIds = new Set(storedMatches.map(m => m.id));
+        const missingMatches = allInitialMatches
+          .filter(m => !existingIds.has(m.id))
+          .map(m => ({ ...m, time: m.time || '15:00' }));
+        if (missingMatches.length > 0) {
+          storedMatches = [...storedMatches, ...missingMatches];
+          await db.set('matches', storedMatches);
+        }
+
         // Asegurar que todos los usuarios cargados tengan una contraseña asignada
         // (migración). Se hace de forma transaccional para no pisar datos recientes.
         if (storedUsers.some(user => !user.password)) {

@@ -73,8 +73,9 @@ function isPlaceholder(name) {
     name.startsWith('1') || 
     name.startsWith('2') || 
     name.startsWith('3-') || 
-    name.includes('Ganador') || 
-    name.includes('Campeón') || 
+    name.includes('Ganador') ||
+    name.includes('Perdedor') ||
+    name.includes('Campeón') ||
     name.includes('Subcampeón') ||
     name === 'Vacío'
   );

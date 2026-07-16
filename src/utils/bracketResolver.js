@@ -210,6 +210,21 @@ export function resolveFullBracket(matches, matchPredictions = null) {
     return match.homeTeam;
   };
 
+  // Perdedor de un enfrentamiento (para el partido del tercer puesto).
+  const getMatchLoser = (matchId, defaultLabel) => {
+    const match = unifiedMatches.find(m => m.id === matchId);
+    if (!match || match.homeScore === null || match.awayScore === null) {
+      return defaultLabel;
+    }
+    const hs = parseInt(match.homeScore, 10);
+    const as = parseInt(match.awayScore, 10);
+    if (hs > as) return match.awayTeam;
+    if (hs < as) return match.homeTeam;
+    // Empate definido por penaltis: pierde el que no ganó la tanda.
+    if (match.penaltyWinner === 'away') return match.homeTeam;
+    return match.awayTeam;
+  };
+
   const resolvedKnockout = {};
 
   // Ronda de 32 (Partido 73 al 88)
@@ -358,6 +373,20 @@ export function resolveFullBracket(matches, matchPredictions = null) {
     }
   });
 
+  // Tercer puesto (Partido 103): perdedores de las dos semifinales.
+  const thirdPairing = { id: 'k3rd-1', home: 'k4-1', away: 'k4-2' };
+  resolvedKnockout[thirdPairing.id] = {
+    homeTeam: getMatchLoser(thirdPairing.home, 'Perdedor K4-1'),
+    awayTeam: getMatchLoser(thirdPairing.away, 'Perdedor K4-2')
+  };
+  unifiedMatches.forEach(m => {
+    if (m.id === thirdPairing.id) {
+      m.homeTeam = resolvedKnockout[thirdPairing.id].homeTeam;
+      m.awayTeam = resolvedKnockout[thirdPairing.id].awayTeam;
+    }
+  });
+  const thirdPlace = getMatchWinner(thirdPairing.id, 'Tercer Puesto');
+
   const champion = getMatchWinner(finalPairing.id, 'Campeón');
   let runnerUp = 'Subcampeón';
   const finalMatch = unifiedMatches.find(m => m.id === finalPairing.id);
@@ -382,8 +411,10 @@ export function resolveFullBracket(matches, matchPredictions = null) {
     qf: getBracketTeams(qfPairings),
     sf: getBracketTeams(sfPairings),
     final: [resolvedKnockout['k2-1'].homeTeam, resolvedKnockout['k2-1'].awayTeam],
+    third: [resolvedKnockout['k3rd-1'].homeTeam, resolvedKnockout['k3rd-1'].awayTeam],
     champion,
-    runnerUp
+    runnerUp,
+    thirdPlace
   };
 
   return {
