@@ -19,6 +19,7 @@ const getStageLabel = (match) => {
     case 'r16': return 'Octavos';
     case 'qf': return 'Cuartos';
     case 'sf': return 'Semifinal';
+    case 'third': return '3er Puesto';
     case 'final': return 'Final';
     default: return `Grupo ${match.group}`;
   }

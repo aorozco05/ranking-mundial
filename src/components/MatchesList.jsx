@@ -19,6 +19,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
     { key: 'r16', label: 'Octavos' },
     { key: 'qf', label: 'Cuartos' },
     { key: 'sf', label: 'Semis' },
+    { key: 'third', label: '3er Puesto' },
     { key: 'final', label: 'Final' }
   ];
   const isAdmin = currentUserRole === 'admin';
@@ -83,6 +84,7 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
       case 'r16': return 'Octavos de Final';
       case 'qf': return 'Cuartos de Final';
       case 'sf': return 'Semifinales';
+      case 'third': return 'Tercer Puesto';
       case 'final': return 'Final';
       default: return 'Fase de Grupos';
     }
@@ -487,11 +489,12 @@ export default function MatchesList({ matches, updateMatchResult, updateMatchDat
                 
                 const isPlaceholder = (name) => {
                   if (!name) return true;
-                  return name.startsWith('1') || 
-                         name.startsWith('2') || 
-                         name.startsWith('3-') || 
-                         name.includes('Ganador') || 
-                         name.includes('Campeón') || 
+                  return name.startsWith('1') ||
+                         name.startsWith('2') ||
+                         name.startsWith('3-') ||
+                         name.includes('Ganador') ||
+                         name.includes('Perdedor') ||
+                         name.includes('Campeón') ||
                          name.includes('Subcampeón') ||
                          name === 'Vacío';
                 };
